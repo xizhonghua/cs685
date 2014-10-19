@@ -100,6 +100,7 @@ MESSAGE("
 
 #############################################################################
 INCLUDE_DIRECTORIES(src)
+INCLUDE_DIRECTORIES(src/mathtool)
 
 AUX_SOURCE_DIRECTORY(src SRC_FILES)
 

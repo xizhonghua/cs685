@@ -29,7 +29,10 @@ void Simulator::SetupFromFile(const char fname[])
 	while(fscanf(in, "%s", keyword) == 1)
 	{
 	    if(strcmp(keyword, "InitialState") == 0)
-		fscanf(in, "%lf %lf %lf", &m_circles[0], &m_circles[1], &m_circles[2]);
+	    {
+	    	fscanf(in, "%lf %lf %lf", &m_circles[0], &m_circles[1], &m_circles[2]);
+	    	this->SetRobotState(Vector3d(m_circles[0], m_circles[1], 0));
+	    }
 	    else if(strcmp(keyword, "Goal") == 0)
 		fscanf(in, "%lf %lf %lf", &m_circles[3], &m_circles[4], &m_circles[5]);
 	    else if(strcmp(keyword, "BBox") == 0)

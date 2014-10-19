@@ -19,6 +19,7 @@ Graphics::Graphics(const char fname[])
     m_selectedCircle = -1;
     m_editRadius     = false;
     m_run            = false;
+    m_onstep		 = false;
 
     m_pathPos = 0;
     m_subPathPos = 0;
@@ -70,6 +71,12 @@ void Graphics::HandleEventOnTimer(void)
 	    else if(m_method == 2) m_planner->ExtendRRT();
 	    else if(m_method == 3) m_planner->ExtendEST();
 	    else if(m_method == 4) m_planner->ExtendMyApproach();
+	    if(m_onstep)
+	    {
+	    	m_onstep = false;
+	    	m_run = false;
+	    	break;
+	    }
 	}
 	if(!m_planner->IsProblemSolved())
 	    printf("TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n", 
@@ -176,6 +183,12 @@ void Graphics::HandleEventOnKeyPress(const int key)
 	printf("ALLOW RUNNING = %d\n", m_run);
 	break;
 
+    case 'n':
+    	m_run = true;
+    	m_onstep = true;
+    	break;
+
+
     case 'v':
 	m_drawPlannerVertices = !m_drawPlannerVertices;
 	break;
@@ -214,8 +227,11 @@ void Graphics::HandleEventOnDisplay(void)
 //draw robot, goal, and obstacles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
+    // draw robot
     glColor3f(1, 0, 0);
-    DrawCircle2D(m_simulator.GetRobotCenterX(), m_simulator.GetRobotCenterY(), m_simulator.GetRobotRadius());
+    //DrawCircle2D(m_simulator.GetRobotCenterX(), m_simulator.GetRobotCenterY(), m_simulator.GetRobotRadius());
+    DrawRobot(m_simulator.GetRobotState());
+
     glColor3f(0, 1, 0);
     DrawCircle2D(m_simulator.GetGoalCenterX(), m_simulator.GetGoalCenterY(), m_simulator.GetGoalRadius());
     glColor3f(0, 0, 1);
@@ -262,6 +278,67 @@ void Graphics::DrawCircle2D(const double cx, const double cy, const double r)
     for(int i = 0; i <= nsides; i++)
 	glVertex2d(cx + r * cos(i * angle), cy + r * sin(i * angle));
     glEnd();	
+}
+
+
+#define RADPERDEG 0.0174533
+
+void Arrow(GLdouble x1,GLdouble y1,GLdouble z1,GLdouble x2,GLdouble y2,GLdouble z2,GLdouble D)
+{
+  double x=x2-x1;
+  double y=y2-y1;
+  double z=z2-z1;
+  double L=sqrt(x*x+y*y+z*z);
+
+    GLUquadricObj *quadObj;
+
+    glPushMatrix ();
+
+      glTranslated(x1,y1,z1);
+
+      if((x!=0.)||(y!=0.)) {
+        glRotated(atan2(y,x)/RADPERDEG,0.,0.,1.);
+        glRotated(atan2(sqrt(x*x+y*y),z)/RADPERDEG,0.,1.,0.);
+      } else if (z<0){
+        glRotated(180,1.,0.,0.);
+      }
+
+      glTranslatef(0,0,L-4*D);
+
+      quadObj = gluNewQuadric ();
+      gluQuadricDrawStyle (quadObj, GLU_FILL);
+      gluQuadricNormals (quadObj, GLU_SMOOTH);
+      gluCylinder(quadObj, 2*D, 0.0, 4*D, 32, 1);
+      gluDeleteQuadric(quadObj);
+
+      quadObj = gluNewQuadric ();
+      gluQuadricDrawStyle (quadObj, GLU_FILL);
+      gluQuadricNormals (quadObj, GLU_SMOOTH);
+      gluDisk(quadObj, 0.0, 2*D, 32, 1);
+      gluDeleteQuadric(quadObj);
+
+      glTranslatef(0,0,-L+4*D);
+
+      quadObj = gluNewQuadric ();
+      gluQuadricDrawStyle (quadObj, GLU_FILL);
+      gluQuadricNormals (quadObj, GLU_SMOOTH);
+      gluCylinder(quadObj, D, D, L-4*D, 32, 1);
+      gluDeleteQuadric(quadObj);
+
+      quadObj = gluNewQuadric ();
+      gluQuadricDrawStyle (quadObj, GLU_FILL);
+      gluQuadricNormals (quadObj, GLU_SMOOTH);
+      gluDisk(quadObj, 0.0, D, 32, 1);
+      gluDeleteQuadric(quadObj);
+
+    glPopMatrix ();
+
+}
+
+void Graphics::DrawRobot(const Vector3d& state)
+{
+	static const auto L = 2.0;
+	Arrow(state[0], state[1], 2.0, state[0]+cos(state[2])*L, state[1]+sin(state[2])*L, 2.0, 0.6);
 }
 
 void Graphics::DrawTrajectory(const int childVid, const double z)

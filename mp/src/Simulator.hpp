@@ -11,6 +11,8 @@
 #include <cstdlib>
 #include <vector>
 #include "PseudoRandom.hpp"
+#include "Vector.h"
+using namespace mathtool;
 
 class Simulator
 {
@@ -41,9 +43,14 @@ public:
 
     double GetRobotRadius(void) const
     {
-	return m_circles[2];
+    	return 0.2;//m_circles[2];
     }
     
+    const Vector3d& GetRobotState(void) const
+    {
+    	return m_state;
+    }
+
     double GetGoalCenterX(void) const
     {
 	return m_circles[3];	
@@ -54,9 +61,9 @@ public:
 	return m_circles[4];	
     }
 
-    const std::vector<double> GetGoalState(void) const
+    const Vector3d GetGoalState(void) const
 	{
-    	auto s = {this->GetGoalCenterX(), this->GetGoalCenterY(), 0.0};
+    	auto s = Vector3d(this->GetGoalCenterX(), this->GetGoalCenterY(), 0.0);
 
     	return s;
 	}
@@ -106,9 +113,10 @@ public:
 	SetRobotCenter(s[0], s[1]);
     }
     
-    void SetRobotState(const std::vector<double>& s)
+    void SetRobotState(const Vector3d& s)
 	{
-	SetRobotCenter(s[0], s[1]);
+    	SetRobotCenter(s[0], s[1]);
+    	m_state = s;
 	}
 
     void SetRobotCenter(const double x, const double y)
@@ -129,9 +137,9 @@ public:
     	return m_timeOneStep;
     }
 
-    std::vector<double> SampleState() const
+    Vector3d SampleState() const
     {
-    	auto s = std::vector<double>(3);
+    	auto s = Vector3d();
     	s[0] = PseudoRandomUniformReal(m_bbox[0], m_bbox[2]);
     	s[1] = PseudoRandomUniformReal(m_bbox[1], m_bbox[3]);
     	s[2] = PseudoRandomUniformReal()*2*acos(1);
@@ -151,6 +159,7 @@ protected:
     double              m_distOneStep;
     double 				m_timeOneStep;
     double              m_bbox[4];
+    Vector3d			m_state;
 
     friend class Graphics;
 };

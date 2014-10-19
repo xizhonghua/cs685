@@ -1,15 +1,17 @@
 #include "MP.hpp"
 #include "PseudoRandom.hpp"
 #include "MyTimer.hpp"
+#include "Matrix.h"
 #include <cstring>
 #include <iostream>
 using namespace std;
+using namespace mathtool;
 
 const double P = 0.1;
-const double PI = 3.1415926;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 0.5;
-static const double MAX_VEL = 2;
+static const double MAX_OMEGA = 3.14;
+static const double MAX_VEL = 5;
+static const double MAX_EXPENSION = 10;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
 {
@@ -35,9 +37,9 @@ MotionPlanner::MotionPlanner(Simulator * const simulator)
 
     printf("m_max_steps = %d m_max_steps2 = %d\n", m_max_steps, m_max_steps2);
 
-    auto state = {m_simulator->GetRobotCenterX(), m_simulator->GetRobotCenterY(), 0.0};
+    auto state = Vector3d(m_simulator->GetRobotCenterX(), m_simulator->GetRobotCenterY(), 0.0);
 
-    auto path = vector<vector<double> >();
+    auto path = vector<Vector3d>();
 
     auto vinit = new Vertex(-1, 0, 0, 0, state, path);
 
@@ -68,7 +70,7 @@ double MotionPlanner::Dist(const double* st1, const vector<double>& st2)
 	return sqrt((st1[0]-st2[0])*(st1[0]-st2[0]) + (st1[1]-st2[1])*(st1[1]-st2[1]));
 }
 
-double MotionPlanner::DistSE2(const vector<double>& st1, const vector<double>& st2)
+double MotionPlanner::DistSE2(const Vector3d& st1, const Vector3d& st2)
 {
 	auto d1 = sqrt((st1[0]-st2[0])*(st1[0]-st2[0]) + (st1[1]-st2[1])*(st1[1]-st2[1]));
 
@@ -191,7 +193,7 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const double vel, cons
 		if(dist < dist_threshold) break;
 	}
 
-	auto path = vector<vector<double> >(states.begin(), states.begin()+steps_moved);
+	auto path = vector<Vector3d>(states.begin(), states.begin()+steps_moved);
 
 	auto new_vertex = new Vertex(vid, steps_moved, vel, omega, lastState, path);
 
@@ -209,49 +211,159 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const double vel, cons
 	return new_vertex;
 }
 
-vector<vector<double> > MotionPlanner::SimDiffDrive(const vector<double>& start, const double vel, const double omega, const int steps, const double delta)
+Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const Vector3d& goal)
 {
-	auto curState = start;
-	auto output = vector<vector<double> >();
+	// get resolution
+	auto res = m_simulator->GetDistOneStep();
+	auto gs = this->m_simulator->GetGoalState();
+	auto v = m_vertices[vid];
+	auto delta = m_simulator->GetTimeOneStep();
 
+	auto lastState = v->m_state;
 
-	//cout<<"start = "<<start[0]<<" "<<start[1]<<" "<<start[2]<<endl;
-	//cout<<"vel = "<<vel<<" omega = "<<omega<<" steps = "<<steps<<" delta = "<<delta<<endl;
-	for(auto i=0;i<steps;i++)
+	auto steps_moved = 0;
+
+	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
+
+	auto path = this->DiffDriveGoTo(lastState, goal);
+
+	if(path.size() == 0) return NULL;
+
+	auto new_vertex = new Vertex(vid, path.size(), 0, 0, path.back(), path);
+
+	auto dist = this->DistSE2(new_vertex->m_state, gs);
+
+	// goal reached
+	if(dist < dist_threshold)
 	{
-		curState[0] += vel*cos(curState[2])*delta;
-		curState[1] += vel*sin(curState[2])*delta;
-		curState[2] += omega*delta;
-		curState[2] = this->wrapAngle(curState[2]);
-
-		//cout<<"step "<<i<<" cur = "<<curState[0]<<" "<<curState[1]<<" "<<curState[2]<<endl;
-
-		output.push_back(curState);
+		new_vertex->m_type = new_vertex->TYPE_GOAL;
+		cout<<"dist = "<<dist<<" goal reached!"<<endl;
 	}
 
-	//cin>>curState[0];
+	this->AddVertex(new_vertex);
+
+	return new_vertex;
+}
+
+Vector3d MotionPlanner::SimDiffDriveOneStep(const Vector3d& start, const double vel, const double omega, const double delta)
+{
+	auto curState = start;
+
+	curState[0] += vel*cos(curState[2])*delta;
+	curState[1] += vel*sin(curState[2])*delta;
+	curState[2] += omega*delta;
+	curState[2] = this->wrapAngle(curState[2]);
+
+	return curState;
+}
+
+vector<Vector3d> MotionPlanner::SimDiffDrive(const Vector3d& start, const double vel, const double omega, const int steps, const double delta)
+{
+	auto curState = start;
+	auto output = vector<Vector3d>();
+
+	for(auto i=0;i<steps;i++)
+	{
+		curState = this->SimDiffDriveOneStep(curState, vel, omega, delta);
+		output.push_back(curState);
+	}
 
 	return output;
 }
 
 
-vector<double> MotionPlanner::RandomConfig()
+
+vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vector3d& goal)
 {
+	auto output = vector<Vector3d>();
 
-	vector<double> cfg(3);
+	static auto const k_rho = 0.1;
+	static auto const k_alpha = 0.02;
+	static auto const k_beta = 0.02;
 
+	const auto res = this->m_simulator->GetDistOneStep();
+	const auto delta = this->m_simulator->GetTimeOneStep();
+	const auto gs = this->m_simulator->GetGoalState();
+	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
+
+	auto T = Matrix3x3(
+			cos(goal[2]),	-sin(goal[2]), 	goal[0],
+			sin(goal[2]), 	cos(goal[2]), 	goal[1],
+			0,				0,				1		);
+
+	auto goal_t = Vector3d();
+	auto start_t = T.inv() * Vector3d(start[0], start[1], 1);
+	start_t[2] = -goal[2];
+
+	auto now_t = start_t;
+	auto total_moved = 0.0;
+
+	while(true)
+	{
+		auto diff = goal_t - now_t;
+
+		auto rho = sqrt(diff[0]*diff[0] + diff[1]*diff[1]);
+		auto alpha = -now_t[2] + atan2(diff[1], diff[0]);
+		auto beta = now_t[2] + alpha;
+
+		auto vel = k_rho*rho;
+		auto omega = k_alpha * alpha + k_beta*beta;
+
+		// [0,0,0] reached
+		if (rho < res && this->AngleDiff(0, now_t[2]) < res*0.1)
+		{
+			break;
+		}
+
+		// move one step
+		now_t = this->SimDiffDriveOneStep(now_t, vel, omega, delta);
+
+		// back to workspace
+		auto now = T*Vector3d(now_t[0], now_t[1], 1);
+		now[2] = now_t[2] + goal[2];
+
+//		cout<<"start = "<<start<<" now = "<<now<<" goal = "<<goal<<" dist = "<<diff.norm()<<endl;
+
+
+		this->m_simulator->SetRobotState(now);
+
+		if(!this->m_simulator->IsValidState())
+		{
+			break;
+		}
+
+		output.push_back(now);
+
+		auto dist = this->DistSE2(now, gs);
+
+		// goal reached
+		if(dist < dist_threshold)
+		{
+			break;
+		}
+
+		total_moved += vel*delta;
+
+		if(total_moved > MAX_EXPENSION) break;
+	}
+
+
+	return output;
+}
+
+
+Vector3d MotionPlanner::RandomConfig()
+{
 	if(PseudoRandomUniformReal() < P)
 	{
 		// select random state from goal region with probability P
-		cfg = this->m_simulator->GetGoalState();
+		return this->m_simulator->GetGoalState();
 	}
 	else
 	{
 	    // select random state uniformly with probability = (1 - P)
-		cfg = this->m_simulator->SampleState();
+		return this->m_simulator->SampleState();
 	}
-
-	return cfg;
 }
 
 void MotionPlanner::RandomControl(double& vel, double& omega)
@@ -268,18 +380,10 @@ void MotionPlanner::ExtendRandom(void)
 
 	auto vid = PseudoRandomUniformReal() * this->m_vertices.size();
 
-//	double sto[2];
-//
-//	this->RandomConfig(sto);
-//
-//    this->ExtendTree(vid, sto);
+	auto cfg = this->RandomConfig();
 
-	auto vel = 0.0;
-	auto omega = 0.0;
+	this->ExtendTreeDiffDrive(vid, cfg);
 
-	this->RandomControl(vel, omega);
-
-	this->ExtendTreeDiffDrive(vid, vel, omega, this->m_simulator->GetTimeOneStep()*100);
     
     m_totalSolveTime += ElapsedTime(&clk);
 }
@@ -317,7 +421,7 @@ void MotionPlanner::ExtendRRT(void)
 
     if(closest)
     {
-    	this->ExtendTreeDiffDrive(vid, vel, omega, 10);
+    	this->ExtendTreeDiffDrive(vid, cfg);
     }
 
     m_totalSolveTime += ElapsedTime(&clk);

@@ -1,10 +1,12 @@
 #ifndef MOTION_PLANNER_HPP_
 #define MOTION_PLANNER_HPP_
 
+#include "Matrix.h"
 #include "Simulator.hpp"
 #include <cmath>
 #include <iostream>
 using namespace std;
+using namespace mathtool;
 
 struct Vertex
 {
@@ -15,7 +17,7 @@ struct Vertex
 	    TYPE_GOAL = 2
 	};
 
-    Vertex(const int parent, const int steps, const double vel, const double omega, const vector<double>& state, const vector<vector<double> > path)
+    Vertex(const int parent, const int steps, const double vel, const double omega, const Vector3d& state, const vector<Vector3d> path)
     {
     	m_vid = -1;
     	m_parent = parent;
@@ -34,7 +36,7 @@ struct Vertex
 	
     int	   	m_vid;
     int    	m_parent;
-    vector<double> m_state;
+    Vector3d m_state;
     int    	m_type;
     int    	m_nchildren;
     int	   	m_neighbor;
@@ -42,7 +44,7 @@ struct Vertex
     double 	m_vel;
     double 	m_omega;
 
-    vector<vector<double> > m_path;
+    vector<Vector3d> m_path;
 
     double weight() {
     	return 2.0/(1+exp(2*m_neighbor));
@@ -72,15 +74,24 @@ public:
 
     bool IsProblemSolved(void) { return m_vidAtGoal >= 0; }
 
+protected:
+
+    vector<Vector3d> SimDiffDrive(const Vector3d& start, const double vel, const double omega, const int steps, const double delta);
+    Vector3d SimDiffDriveOneStep(const Vector3d& start, const double vel, const double omega, const double delta);
+
+    // find a path from start to goal
+    vector<Vector3d> DiffDriveGoTo(const Vector3d& start, const Vector3d& goal);
+
     static inline double wrapAngle( double angle )
 	{
 		double twoPi = 2.0 * 3.141592865358979;
 		return angle - twoPi * floor( angle / twoPi );
 	}
 
-    vector<vector<double> > SimDiffDrive(const vector<double>& start, const double vel, const double omega, const int steps, const double delta);
-
-protected:
+    static inline double AngleDiff(double angle1, double angle2)
+    {
+    	return min(fabs(angle1 - angle2), 2*PI-fabs(angle1 - angle2));
+    }
 
     void GetPathFromInitToGoal(std::vector<int> *path) const;
 
@@ -95,13 +106,16 @@ protected:
     // extend the tree from Vertex[vid] by applying v and omega for time t
     Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
 
-    vector<double> RandomConfig();
+    // extend the tree from Vertex[vid] to goal
+    Vertex* ExtendTreeDiffDrive(const int vid, const Vector3d& goal);
+
+    Vector3d RandomConfig();
 
     // generate an random control
     void RandomControl(double& vel, double& omega);
 
     double Dist(const double* st1, const vector<double>& st2);
-    double DistSE2(const vector<double>& st1, const vector<double>& st2);
+    double DistSE2(const Vector3d& st1, const Vector3d& st2);
 
     Simulator            	*m_simulator;
     std::vector<Vertex *>	m_vertices;
