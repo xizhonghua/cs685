@@ -14,13 +14,36 @@ struct Vertex
 	    TYPE_INIT = 1,
 	    TYPE_GOAL = 2
 	};
+
+    Vertex(const int parent, const int steps, const double vel, const double omega, const vector<double>& state, const vector<vector<double> > path)
+    {
+    	m_vid = -1;
+    	m_parent = parent;
+    	m_type = 0;
+    	m_nchildren = 0;
+    	m_neighbor = 0;
+    	m_state = state;
+
+    	// control
+    	m_vel = vel;
+    	m_omega = omega;
+    	m_steps = steps;
+
+    	m_path = path;
+    }
 	
-    int	   m_vid;
-    int    m_parent;
-    double m_state[Simulator::STATE_NR_DIMS];
-    int    m_type;
-    int    m_nchildren;
-    int	   m_neighbor;
+    int	   	m_vid;
+    int    	m_parent;
+    vector<double> m_state;
+    int    	m_type;
+    int    	m_nchildren;
+    int	   	m_neighbor;
+    int		m_steps;
+    double 	m_vel;
+    double 	m_omega;
+
+    vector<vector<double> > m_path;
+
     double weight() {
     	return 2.0/(1+exp(2*m_neighbor));
     }
@@ -48,7 +71,15 @@ public:
     int GetTotalVertices() const { return m_vertices.size(); }
 
     bool IsProblemSolved(void) { return m_vidAtGoal >= 0; }
-        
+
+    static inline double wrapAngle( double angle )
+	{
+		double twoPi = 2.0 * 3.141592865358979;
+		return angle - twoPi * floor( angle / twoPi );
+	}
+
+    vector<vector<double> > SimDiffDrive(const vector<double>& start, const double vel, const double omega, const int steps, const double delta);
+
 protected:
 
     void GetPathFromInitToGoal(std::vector<int> *path) const;
@@ -60,9 +91,17 @@ protected:
     Vertex* ExtendTree(const int    vid,
 		    const double sto[], int max_steps = 0);
     
+
+    // extend the tree from Vertex[vid] by applying v and omega for time t
+    Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
+
     void RandomConfig(double cfg[]);
 
-    double Dist(const double* st1, const double* st2);
+    // generate an random control
+    void RandomControl(double& vel, double& omega);
+
+    double Dist(const double* st1, const vector<double>& st2);
+    double DistSE2(const vector<double>& st1, const vector<double>& st2);
 
     Simulator            	*m_simulator;
     std::vector<Vertex *>	m_vertices;

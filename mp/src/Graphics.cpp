@@ -1,4 +1,5 @@
 #include "Graphics.hpp"
+#include <algorithm>
 
 #ifdef __APPLE__
 #include <GLUT/glut.h>
@@ -20,6 +21,7 @@ Graphics::Graphics(const char fname[])
     m_run            = false;
 
     m_pathPos = 0;
+    m_subPathPos = 0;
 
     m_drawPlannerVertices = true;
 
@@ -77,6 +79,7 @@ void Graphics::HandleEventOnTimer(void)
     if(m_path.size() == 0 && m_planner->IsProblemSolved())
     {
 	m_pathPos = 0;
+	m_subPathPos = 0;
 	m_planner->GetPathFromInitToGoal(&m_path);
 	
 	printf("TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n", 
@@ -86,11 +89,21 @@ void Graphics::HandleEventOnTimer(void)
     
     if(m_path.size() != 0)
     {
-	if(m_pathPos >= m_path.size())
+    	if(m_pathPos >= m_path.size())
 	    m_pathPos = 0;
 	
-	m_simulator.SetRobotState(m_planner->m_vertices[m_path[m_pathPos]]->m_state);
-	++m_pathPos;
+    	auto v = m_planner->m_vertices[m_path[m_pathPos]];
+
+    	if(m_subPathPos < v->m_path.size())
+    	{
+    		m_simulator.SetRobotState(v->m_path[m_subPathPos]);
+    		m_subPathPos++;
+    	}
+    	else
+    	{
+    		++m_pathPos;
+    		m_subPathPos=0;
+    	}
     }
 } 
 
@@ -214,21 +227,28 @@ void Graphics::HandleEventOnDisplay(void)
 //draw planner vertices
     if(m_drawPlannerVertices)
     {
-	glPointSize(4.0);
+		glPointSize(4.0);
+
+		const int n = m_planner->m_vertices.size();
+		glColor3f(0.6, 0.8, 0.3);
+
+		glBegin(GL_POINTS);
+		for(int i = 0; i < n; ++i)
+			glVertex2d(m_planner->m_vertices[i]->m_state[0], m_planner->m_vertices[i]->m_state[1]);
+		glEnd();
+
 	
-	const int n = m_planner->m_vertices.size();
-	glColor3f(0.6, 0.8, 0.3);	
-	glBegin(GL_POINTS);	
-	for(int i = 0; i < n; ++i)
-	    glVertex2dv(m_planner->m_vertices[i]->m_state);
-	glEnd();
-	glBegin(GL_LINES);	
-	for(int i = 1; i < n; ++i)
-	{
-	    glVertex2dv(m_planner->m_vertices[i]->m_state);
-	    glVertex2dv(m_planner->m_vertices[m_planner->m_vertices[i]->m_parent]->m_state);
-	}
-	glEnd();
+		glLineWidth (1.0);
+		// draw trajectories
+		for(int i = 1; i < n; ++i)
+			this->DrawTrajectory(i);
+
+		glColor3f(1.0f, 0, 0);
+		glLineWidth (2.0);
+		// draw path
+		for(int i=1;i<m_path.size();++i)
+			this->DrawTrajectory(m_path[i], 1.0);
+
     }
 }
 
@@ -244,6 +264,22 @@ void Graphics::DrawCircle2D(const double cx, const double cy, const double r)
     glEnd();	
 }
 
+void Graphics::DrawTrajectory(const int childVid, const double z)
+{
+	auto v = m_planner->m_vertices[childVid];
+	auto p = m_planner->m_vertices[v->m_parent];
+
+	glBegin(GL_LINE_STRIP);
+
+	auto state = p->m_state;
+
+	glVertex3d(state[0], state[1], z);
+
+	for(const auto& s : v->m_path)
+		glVertex3d(s[0], s[1], z);
+
+	glEnd();
+}
 
 void Graphics::CallbackEventOnDisplay(void)
 {

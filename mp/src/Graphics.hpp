@@ -28,6 +28,7 @@ protected:
     void HandleEventOnKeyPress(const int key);
 
     void DrawCircle2D(const double cx, const double cy, const double r);
+    void DrawTrajectory(const int childVid, const double z = 0.0);
 
     static void CallbackEventOnDisplay(void);
     static void CallbackEventOnMouse(int button, int state, int x, int y);
@@ -45,6 +46,7 @@ protected:
 
     std::vector<int> m_path;
     int              m_pathPos;
+    int				 m_subPathPos;
 
     bool m_drawPlannerVertices;
     int  m_method;

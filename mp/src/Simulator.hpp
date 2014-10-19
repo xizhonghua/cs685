@@ -23,7 +23,8 @@ public:
 	{
 	    STATE_X = 0,
 	    STATE_Y = 1,
-	    STATE_NR_DIMS = 2
+	    STATE_THETA = 2,
+	    STATE_NR_DIMS = 3
 	};
 
     void SetupFromFile(const char fname[]);
@@ -52,6 +53,13 @@ public:
     {
 	return m_circles[4];	
     }
+
+    const std::vector<double> GetGoalState(void) const
+	{
+    	auto s = {this->GetGoalCenterX(), this->GetGoalCenterY(), 0.0};
+
+    	return s;
+	}
 
     double GetGoalRadius(void) const
     {
@@ -98,6 +106,11 @@ public:
 	SetRobotCenter(s[0], s[1]);
     }
     
+    void SetRobotState(const std::vector<double>& s)
+	{
+	SetRobotCenter(s[0], s[1]);
+	}
+
     void SetRobotCenter(const double x, const double y)
     {
 	m_circles[0] = x;
@@ -108,7 +121,12 @@ public:
   
     double GetDistOneStep(void) const
     {
-	return m_distOneStep;
+    	return m_distOneStep;
+    }
+
+    double GetTimeOneStep(void) const
+    {
+    	return m_timeOneStep;
     }
 
     void SampleState(double s[]) const
@@ -127,6 +145,7 @@ public:
 protected:    
     std::vector<double> m_circles;
     double              m_distOneStep;
+    double 				m_timeOneStep;
     double              m_bbox[4];
 
     friend class Graphics;
