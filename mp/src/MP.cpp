@@ -8,7 +8,8 @@ using namespace std;
 const double P = 0.1;
 const double PI = 3.1415926;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 1.0;
+static const double MAX_OMEGA = 0.5;
+static const double MAX_VEL = 2;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
 {
@@ -154,8 +155,10 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const double vel, cons
 	auto gs = this->m_simulator->GetGoalState();
 	auto v = m_vertices[vid];
 
+	auto max_t = omega == 0 ? t : min(t, 2*PI/fabs(omega));
+
 	auto delta = m_simulator->GetTimeOneStep();
-	auto steps = t / delta;
+	auto steps = max_t / delta;
 
 	//auto curState = v->m_state;
 
@@ -232,25 +235,28 @@ vector<vector<double> > MotionPlanner::SimDiffDrive(const vector<double>& start,
 }
 
 
-void MotionPlanner::RandomConfig(double cfg[])
+vector<double> MotionPlanner::RandomConfig()
 {
+
+	vector<double> cfg(3);
 
 	if(PseudoRandomUniformReal() < P)
 	{
 		// select random state from goal region with probability P
-		cfg[0] =  this->m_simulator->GetGoalCenterX();
-		cfg[1] = this->m_simulator->GetGoalCenterY();
+		cfg = this->m_simulator->GetGoalState();
 	}
 	else
 	{
 	    // select random state uniformly with probability = (1 - P)
-		this->m_simulator->SampleState(cfg);
+		cfg = this->m_simulator->SampleState();
 	}
+
+	return cfg;
 }
 
 void MotionPlanner::RandomControl(double& vel, double& omega)
 {
-	vel = 2;
+	vel = PseudoRandomUniformReal() < 0.5 ? MAX_VEL : - MAX_VEL;
 	omega = PseudoRandomUniformReal()*MAX_OMEGA*2 - MAX_OMEGA;
 }
 
@@ -280,36 +286,41 @@ void MotionPlanner::ExtendRandom(void)
 
 void MotionPlanner::ExtendRRT(void)
 {
-//    Clock clk;
-//    StartTime(&clk);
-//
-//    // generate a random config
-//    double sto[2];
-//    this->RandomConfig(sto);
-//
-//    double min_dist = 1e10;
-//    Vertex* closest = NULL;
-//    int vid = -1;
-//
-//    // find the closest vertex in the tree
-//    for(int i=0, size = this->m_vertices.size();i<size;++i)
-//    {
-//    	Vertex* v = this->m_vertices[i];
-//    	double dist = this->Dist(sto, v->m_state);
-//    	if(dist < min_dist)
-//    	{
-//    		min_dist = dist;
-//    		closest = v;
-//    		vid = i;
-//    	}
-//    }
-//
-//    if(closest)
-//    {
-//    	this->ExtendTree(vid, sto);
-//    }
-//
-//    m_totalSolveTime += ElapsedTime(&clk);
+    Clock clk;
+    StartTime(&clk);
+
+    // generate a random config
+
+    auto cfg = this->RandomConfig();
+
+    auto vel = 0.0;
+    auto omega = 0.0;
+
+    this->RandomControl(vel, omega);
+
+    double min_dist = 1e10;
+    Vertex* closest = NULL;
+    int vid = -1;
+
+    // find the closest vertex in the tree
+    for(int i=0, size = this->m_vertices.size();i<size;++i)
+    {
+    	Vertex* v = this->m_vertices[i];
+    	double dist = this->DistSE2(cfg, v->m_state);
+    	if(dist < min_dist)
+    	{
+    		min_dist = dist;
+    		closest = v;
+    		vid = i;
+    	}
+    }
+
+    if(closest)
+    {
+    	this->ExtendTreeDiffDrive(vid, vel, omega, 10);
+    }
+
+    m_totalSolveTime += ElapsedTime(&clk);
 }
 
 

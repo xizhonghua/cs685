@@ -95,7 +95,7 @@ protected:
     // extend the tree from Vertex[vid] by applying v and omega for time t
     Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
 
-    void RandomConfig(double cfg[]);
+    vector<double> RandomConfig();
 
     // generate an random control
     void RandomControl(double& vel, double& omega);

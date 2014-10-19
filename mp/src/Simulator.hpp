@@ -129,10 +129,14 @@ public:
     	return m_timeOneStep;
     }
 
-    void SampleState(double s[]) const
+    std::vector<double> SampleState() const
     {
-	s[0] = PseudoRandomUniformReal(m_bbox[0], m_bbox[2]);
-	s[1] = PseudoRandomUniformReal(m_bbox[1], m_bbox[3]);
+    	auto s = std::vector<double>(3);
+    	s[0] = PseudoRandomUniformReal(m_bbox[0], m_bbox[2]);
+    	s[1] = PseudoRandomUniformReal(m_bbox[1], m_bbox[3]);
+    	s[2] = PseudoRandomUniformReal()*2*acos(1);
+
+    	return s;
     }
     
 
