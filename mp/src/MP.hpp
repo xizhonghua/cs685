@@ -9,6 +9,7 @@
 using namespace std;
 using namespace mathtool;
 
+
 struct Vertex
 {
     enum
@@ -18,7 +19,7 @@ struct Vertex
 	    TYPE_GOAL = 2
 	};
 
-    Vertex(const int parent, const int steps, const double vel, const double omega, const Vector3d& state, const vector<Vector3d> path)
+    Vertex(const int parent, const State& state, const vector<State> path)
     {
     	m_vid = -1;
     	m_parent = parent;
@@ -26,27 +27,17 @@ struct Vertex
     	m_nchildren = 0;
     	m_neighbor = 0;
     	m_state = state;
-
-    	// state
-    	m_vel = vel;
-    	m_omega = omega;
-
-    	m_steps = steps;
-
     	m_path = path;
     }
 	
     int	   	m_vid;
     int    	m_parent;
-    Vector3d m_state;
+    State m_state;
     int    	m_type;
     int    	m_nchildren;
     int	   	m_neighbor;
-    int		m_steps;
-    double 	m_vel;
-    double 	m_omega;
 
-    vector<Vector3d> m_path;
+    vector<State> m_path;
 
     double weight() {
     	return 2.0/(1+exp(2*m_neighbor));
@@ -78,11 +69,11 @@ public:
 
 protected:
 
-    vector<Vector3d> SimDiffDrive(const Vector3d& start, const double vel, const double omega, const int steps, const double delta);
-    Vector3d SimDiffDriveOneStep(const Vector3d& start, const double vel, const double omega, const double delta);
+    vector<State> SimDiffDrive(const State& start, const double vel, const double omega, const int steps, const double delta);
+    State SimDiffDriveOneStep(const State& start, const double vel, const double omega, const double delta);
 
     // find a path from start to goal
-    vector<Vector3d> DiffDriveGoTo(const Vertex* start, const Vector3d& goal, double& last_vel, double& last_omega, double& total_moved);
+    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, double& total_moved);
 
     static inline double Limit(double val, double min_val, double max_val)
     {
@@ -116,15 +107,15 @@ protected:
     Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
 
     // extend the tree from Vertex[vid] to goal
-    Vertex* ExtendTreeDiffDrive(const int vid, const Vector3d& goal);
+    Vertex* ExtendTreeDiffDrive(const int vid, const State& goal);
 
-    Vector3d RandomConfig();
+    State RandomConfig();
 
     // generate an random control
     void RandomControl(double& vel, double& omega);
 
     double Dist(const double* st1, const vector<double>& st2);
-    double DistSE2(const Vector3d& st1, const Vector3d& st2);
+    double DistSE2(const State& st1, const State& st2);
 
     Simulator            	*m_simulator;
     std::vector<Vertex *>	m_vertices;

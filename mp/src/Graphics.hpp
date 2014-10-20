@@ -28,7 +28,7 @@ protected:
     void HandleEventOnKeyPress(const int key);
 
     void DrawCircle2D(const double cx, const double cy, const double r);
-    void DrawRobot(const Vector3d& state);
+    void DrawRobot(const State& state);
     void DrawTrajectory(const int childVid, const double z = 0.0);
 
     static void CallbackEventOnDisplay(void);

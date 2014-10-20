@@ -247,7 +247,7 @@ void Graphics::HandleEventOnDisplay(void)
 
 		glBegin(GL_POINTS);
 		for(int i = 0; i < n; ++i)
-			glVertex2d(m_planner->m_vertices[i]->m_state[0], m_planner->m_vertices[i]->m_state[1]);
+			glVertex2d(m_planner->m_vertices[i]->m_state.x, m_planner->m_vertices[i]->m_state.y);
 		glEnd();
 
 	
@@ -269,7 +269,7 @@ void Graphics::HandleEventOnDisplay(void)
 	for(auto vid : m_path)
 	{
 		auto v = this->m_planner->m_vertices[vid];
-		this->DrawCircle2D(v->m_state[0], v->m_state[1], 0.25);
+		this->DrawCircle2D(v->m_state.x, v->m_state.y, 0.25);
 	}
 	glTranslated(0,0,-1);
 
@@ -345,10 +345,10 @@ void Arrow(GLdouble x1,GLdouble y1,GLdouble z1,GLdouble x2,GLdouble y2,GLdouble 
 
 }
 
-void Graphics::DrawRobot(const Vector3d& state)
+void Graphics::DrawRobot(const State& state)
 {
 	static const auto L = 2.0;
-	Arrow(state[0], state[1], 2.0, state[0]+cos(state[2])*L, state[1]+sin(state[2])*L, 2.0, 0.6);
+	Arrow(state.x, state.y, 2.0, state.x+cos(state.theta)*L, state.y+sin(state.theta)*L, 2.0, 0.6);
 }
 
 void Graphics::DrawTrajectory(const int childVid, const double z)
@@ -360,10 +360,10 @@ void Graphics::DrawTrajectory(const int childVid, const double z)
 
 	auto state = p->m_state;
 
-	glVertex3d(state[0], state[1], z);
+	glVertex3d(state.x, state.y, z);
 
 	for(const auto& s : v->m_path)
-		glVertex3d(s[0], s[1], z);
+		glVertex3d(s.x, s.y, z);
 
 	glEnd();
 }

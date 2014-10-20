@@ -14,6 +14,37 @@
 #include "Vector.h"
 using namespace mathtool;
 
+struct State
+{
+	double x;
+	double y;
+	double theta;
+
+	double vel;
+	double omega;
+
+	State()
+	{
+		x = 0;
+		y = 0;
+		theta = 0;
+		vel = 0;
+		omega = 0;
+	}
+
+	State(double x, double y, double theta):x(x),y(y),theta(theta)
+	{
+		vel = 0;
+		omega = 0;
+	}
+
+	// constructor
+	State(double x, double y, double theta, double vel, double omega) : x(x), y(y), theta(theta), vel(vel), omega(omega)
+	{
+		//nothing to do here
+	}
+};
+
 class Simulator
 {
 public:    
@@ -46,7 +77,7 @@ public:
     	return m_circles[2];
     }
     
-    const Vector3d& GetRobotState(void) const
+    const State& GetRobotState(void) const
     {
     	return m_state;
     }
@@ -61,9 +92,9 @@ public:
 	return m_circles[4];	
     }
 
-    const Vector3d GetGoalState(void) const
+    const State GetGoalState(void) const
 	{
-    	auto s = Vector3d(this->GetGoalCenterX(), this->GetGoalCenterY(), 0.0);
+    	auto s = State(this->GetGoalCenterX(), this->GetGoalCenterY(), 0.0);
 
     	return s;
 	}
@@ -113,9 +144,9 @@ public:
 	SetRobotCenter(s[0], s[1]);
     }
     
-    void SetRobotState(const Vector3d& s)
+    void SetRobotState(const State& s)
 	{
-    	SetRobotCenter(s[0], s[1]);
+    	SetRobotCenter(s.x, s.y);
     	m_state = s;
 	}
 
@@ -137,12 +168,12 @@ public:
     	return m_timeOneStep;
     }
 
-    Vector3d SampleState() const
+    State SampleState() const
     {
-    	auto s = Vector3d();
-    	s[0] = PseudoRandomUniformReal(m_bbox[0], m_bbox[2]);
-    	s[1] = PseudoRandomUniformReal(m_bbox[1], m_bbox[3]);
-    	s[2] = PseudoRandomUniformReal()*2*acos(1);
+    	auto s = State();
+    	s.x = PseudoRandomUniformReal(m_bbox[0], m_bbox[2]);
+    	s.y = PseudoRandomUniformReal(m_bbox[1], m_bbox[3]);
+    	s.theta = PseudoRandomUniformReal()*2*acos(1);
 
     	return s;
     }
@@ -159,7 +190,7 @@ protected:
     double              m_distOneStep;
     double 				m_timeOneStep;
     double              m_bbox[4];
-    Vector3d			m_state;
+    State			m_state;
 
     friend class Graphics;
 };
