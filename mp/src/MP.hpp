@@ -67,6 +67,8 @@ public:
 
     bool IsProblemSolved(void) { return m_vidAtGoal >= 0; }
 
+    void ExportPath(const string& filename) const;
+
 protected:
 
     vector<State> SimDiffDrive(const State& start, const double vel, const double omega, const int steps, const double delta);

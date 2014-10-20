@@ -4,6 +4,7 @@
 #include "Matrix.h"
 #include <cstring>
 #include <iostream>
+#include <fstream>
 using namespace std;
 using namespace mathtool;
 
@@ -520,4 +521,26 @@ void MotionPlanner::GetPathFromInitToGoal(std::vector<int> *path) const
     path->clear();
     for(int i = rpath.size() - 1; i >= 0; --i)
 	path->push_back(rpath[i]);
+}
+
+void MotionPlanner::ExportPath(const string& filename) const
+{
+	ofstream fout;
+
+	fout.open(filename);
+
+	auto path = vector<int>();
+	this->GetPathFromInitToGoal(&path);
+
+	for(auto vid : path)
+	{
+		auto v = this->m_vertices[vid];
+
+		for(auto traj : v->m_path)
+		{
+			fout<<traj.x<<" "<<traj.y<<" "<<traj.theta<<" "<<traj.vel<<" "<<traj.omega<<endl;
+		}
+	}
+
+	fout.close();
 }

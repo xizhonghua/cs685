@@ -183,7 +183,6 @@ public:
     {
 	return m_bbox;
     }
-    
 
 protected:    
     std::vector<double> m_circles;

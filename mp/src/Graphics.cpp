@@ -10,6 +10,7 @@
 #endif
 
 Graphics *m_graphics = NULL;
+string filename;
 
 Graphics::Graphics(const char fname[]) 
 {
@@ -207,6 +208,12 @@ void Graphics::HandleEventOnKeyPress(const int key)
 		    m_simulator.GetObstacleCenterY(i),
 		    m_simulator.GetObstacleRadius(i));
 	fclose(out);
+
+    case 'o':
+    	auto output_filename = filename + ".traj";
+    	m_planner->ExportPath(output_filename);
+    	cout<<"traj exported to "<<output_filename<<endl;
+    	break;
     }
 }
 
@@ -501,6 +508,7 @@ int main(int argc, char **argv)
 
     if(argc == 2)
     {
+    	filename = string(argv[1]);
     	Graphics graphics(argv[1]);
 
     	graphics.MainLoop();
