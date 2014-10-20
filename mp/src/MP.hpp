@@ -3,6 +3,7 @@
 
 #include "Matrix.h"
 #include "Simulator.hpp"
+#include <cassert>
 #include <cmath>
 #include <iostream>
 using namespace std;
@@ -26,9 +27,10 @@ struct Vertex
     	m_neighbor = 0;
     	m_state = state;
 
-    	// control
+    	// state
     	m_vel = vel;
     	m_omega = omega;
+
     	m_steps = steps;
 
     	m_path = path;
@@ -80,7 +82,14 @@ protected:
     Vector3d SimDiffDriveOneStep(const Vector3d& start, const double vel, const double omega, const double delta);
 
     // find a path from start to goal
-    vector<Vector3d> DiffDriveGoTo(const Vector3d& start, const Vector3d& goal);
+    vector<Vector3d> DiffDriveGoTo(const Vertex* start, const Vector3d& goal, double& last_vel, double& last_omega, double& total_moved);
+
+    static inline double Limit(double val, double min_val, double max_val)
+    {
+    	assert(min_val <= max_val);
+
+    	return min(max(val, min_val), max_val);
+    }
 
     static inline double wrapAngle( double angle )
 	{

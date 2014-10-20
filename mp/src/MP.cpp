@@ -9,11 +9,12 @@ using namespace mathtool;
 
 const double P = 0.1;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 3.14;
-static const double MAX_ACC = 1.0;
-static const double MAX_VEL = 5;
-static const double MAX_EXPENSION = 5;
-static const double ANGLE_DIFF_FACTOR = 1.0;
+static const double MAX_OMEGA = 10;
+static const double MAX_VEL_ACC = 0.5;
+static const double MAX_OMEGA_ACC = 5;
+static const double MAX_VEL = 4.0;
+static const double MAX_EXPENSION = 2.5;
+static const double ANGLE_DIFF_FACTOR = 0.1;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
 {
@@ -79,77 +80,6 @@ double MotionPlanner::DistSE2(const Vector3d& st1, const Vector3d& st2)
 	auto d2 = ANGLE_DIFF_FACTOR*min(fabs(st1[2] - st2[2]), 2*PI-fabs(st1[2] - st2[2]));
 
 	return sqrt(d1*d1 + d2*d2);
-}
-
-Vertex* MotionPlanner::ExtendTree(const int    vid,
-			       const double sto[], int max_steps)
-{
-//	// get the vertex to expend from
-//	Vertex* v = m_vertices[vid];
-//	// get resolution
-//	double res = m_simulator->GetDistOneStep();
-//	// compute diff
-//	double diff[2] = { sto[0] - v->m_state[0], sto[1] - v->m_state[1] };
-//	// compute dist
-//	double dist = this->Dist(v->m_state, sto);
-//	// compute max steps
-//	int steps = dist / res;
-//
-//	Vertex * last_added = NULL;
-//
-//	if(steps == 0) {
-//		return NULL;
-//	}
-//
-//	// forwarding vector
-//	double ss[2] = { diff[0]/steps, diff[1]/steps };
-//	// goal
-//	double gs[2] = { this->m_simulator->GetGoalCenterX(), this->m_simulator->GetGoalCenterY() };
-//
-//	if(max_steps!=0)
-//	{
-//		steps = std::min(steps, max_steps);
-//	}
-//
-//	for(int i=1;i<=steps;i++)
-//	{
-//		// temp state
-//		double ts[2] = { v->m_state[0] + i*ss[0], v->m_state[1] + i*ss[1] };
-//
-//		// config robot
-//		this->m_simulator->SetRobotCenter(ts[0], ts[1]);
-//
-//		// validity check
-//		if(this->m_simulator->IsValidState())
-//		{
-//			Vertex *nv = new Vertex();
-//
-//			nv->m_parent = (i == 1 ? vid : this->m_vertices.size()-1);
-//			nv->m_state[0] = ts[0];
-//			nv->m_state[1] = ts[1];
-//			nv->m_nchildren= 0;
-//
-//			double dist = this->Dist(ts, gs);
-//
-//			// close to goal
-//			if(dist < res + this->m_simulator->GetGoalRadius())
-//			{
-//				nv->m_type = nv->TYPE_GOAL;
-//			}
-//
-//			// add to tree
-//			this->AddVertex(nv);
-//
-//			last_added = nv;
-//		}
-//		else
-//		{
-//			// hit obstacle return
-//			return last_added;
-//		}
-//	}
-//
-//	return NULL;
 }
 
 Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t)
@@ -227,11 +157,15 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const Vector3d& goal)
 
 	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
 
-	auto path = this->DiffDriveGoTo(lastState, goal);
+	auto last_omega = 0.0;
+	auto last_vel = 0.0;
+	auto total_moved = 0.0;
+
+	auto path = this->DiffDriveGoTo(v, goal, last_vel, last_omega, total_moved);
 
 	if(path.size() == 0) return NULL;
 
-	auto new_vertex = new Vertex(vid, path.size(), 0, 0, path.back(), path);
+	auto new_vertex = new Vertex(vid, path.size(), last_vel, last_omega, path.back(), path);
 
 	auto dist = this->DistSE2(new_vertex->m_state, gs);
 
@@ -275,18 +209,19 @@ vector<Vector3d> MotionPlanner::SimDiffDrive(const Vector3d& start, const double
 
 
 
-vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vector3d& goal)
+vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const Vector3d& goal, double& last_vel, double& last_omega, double& total_moved)
 {
 	auto output = vector<Vector3d>();
 
 	static auto const k_rho = 0.5;
-	static auto const k_alpha = 0.05;
-	static auto const k_beta = 0.05;
+	static auto const k_alpha = 0.02;
+	static auto const k_beta = 0.2;
 
 	const auto res = this->m_simulator->GetDistOneStep();
 	const auto delta = this->m_simulator->GetTimeOneStep();
 	const auto gs = this->m_simulator->GetGoalState();
 	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
+	auto start = start_v->m_state;
 
 	auto T = Matrix3x3(
 			cos(goal[2]),	-sin(goal[2]), 	goal[0],
@@ -298,7 +233,11 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 	start_t[2] = start[2]-goal[2];
 
 	auto now_t = start_t;
-	auto total_moved = 0.0;
+
+	// init output parameters
+	total_moved = 0.0;
+	last_vel = start_v->m_vel;
+	last_omega = start_v->m_omega;
 
 	while(true)
 	{
@@ -308,11 +247,16 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 		auto alpha = -now_t[2] + atan2(diff[1], diff[0]);
 		auto beta = now_t[2] + alpha;
 
-		auto vel = min(k_rho*rho, MAX_VEL);
+		auto vel =  min(k_rho*rho, MAX_VEL);
+
+		vel = this->Limit(vel, last_vel-MAX_VEL_ACC*delta, last_vel+MAX_VEL_ACC*delta);
+
 		auto omega = k_alpha * alpha + k_beta*beta;
 
+		omega = this->Limit(omega, last_omega-MAX_OMEGA_ACC*delta, last_omega+MAX_OMEGA_ACC*delta);
+
 		// [0,0,0] reached
-		if (rho < res && this->AngleDiff(0, now_t[2]) < res*0.1)
+		if (rho < res && this->AngleDiff(0, now_t[2]) < res*0.5)
 		{
 			break;
 		}
@@ -333,6 +277,9 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 		{
 			break;
 		}
+
+		last_vel = vel;
+		last_omega = omega;
 
 		output.push_back(now);
 

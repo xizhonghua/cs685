@@ -11,7 +11,7 @@ Simulator::Simulator(void)
     m_circles.push_back(-15);
     m_circles.push_back(1.0);
 
-    m_distOneStep = 0.2;
+    m_distOneStep = 0.1;
     m_timeOneStep = 0.1;
 }
 

@@ -1,4 +1,4 @@
-InitialState -27  15  1.0
+InitialState -27  15  0.5
 BBox         -30 -20 30 20
 DistOneStep   1.0
 Goal          20 -15 1.0

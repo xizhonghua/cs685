@@ -43,7 +43,7 @@ public:
 
     double GetRobotRadius(void) const
     {
-    	return 0.2;//m_circles[2];
+    	return m_circles[2];
     }
     
     const Vector3d& GetRobotState(void) const
