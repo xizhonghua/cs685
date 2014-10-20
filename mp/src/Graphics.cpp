@@ -227,10 +227,7 @@ void Graphics::HandleEventOnDisplay(void)
 //draw robot, goal, and obstacles
     glPolygonMode(GL_FRONT_AND_BACK, GL_FILL);
 
-    // draw robot
-    glColor3f(1, 0, 0);
-    //DrawCircle2D(m_simulator.GetRobotCenterX(), m_simulator.GetRobotCenterY(), m_simulator.GetRobotRadius());
-    DrawRobot(m_simulator.GetRobotState());
+
 
     glColor3f(0, 1, 0);
     DrawCircle2D(m_simulator.GetGoalCenterX(), m_simulator.GetGoalCenterY(), m_simulator.GetGoalRadius());
@@ -258,14 +255,27 @@ void Graphics::HandleEventOnDisplay(void)
 		// draw trajectories
 		for(int i = 1; i < n; ++i)
 			this->DrawTrajectory(i);
-
-		glColor3f(1.0f, 0, 0);
-		glLineWidth (2.0);
-		// draw path
-		for(int i=1;i<m_path.size();++i)
-			this->DrawTrajectory(m_path[i], 1.0);
-
     }
+
+    glColor3f(1.0f, 0, 0);
+	glLineWidth (2.0);
+	// draw path
+	for(int i=1;i<m_path.size();++i)
+	{
+		this->DrawTrajectory(m_path[i], 1.0);
+	}
+
+	glTranslated(0,0,1);
+	for(auto vid : m_path)
+	{
+		auto v = this->m_planner->m_vertices[vid];
+		this->DrawCircle2D(v->m_state[0], v->m_state[1], 0.25);
+	}
+	glTranslated(0,0,-1);
+
+    // draw robot
+    glColor3f(1, 0, 1);
+    DrawRobot(m_simulator.GetRobotState());
 }
 
 

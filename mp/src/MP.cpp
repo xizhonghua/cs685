@@ -10,8 +10,10 @@ using namespace mathtool;
 const double P = 0.1;
 const int NUM_GRIDS = 50;
 static const double MAX_OMEGA = 3.14;
+static const double MAX_ACC = 1.0;
 static const double MAX_VEL = 5;
-static const double MAX_EXPENSION = 10;
+static const double MAX_EXPENSION = 5;
+static const double ANGLE_DIFF_FACTOR = 1.0;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
 {
@@ -74,7 +76,7 @@ double MotionPlanner::DistSE2(const Vector3d& st1, const Vector3d& st2)
 {
 	auto d1 = sqrt((st1[0]-st2[0])*(st1[0]-st2[0]) + (st1[1]-st2[1])*(st1[1]-st2[1]));
 
-	auto d2 = min(fabs(st1[2] - st2[2]), 2*PI-fabs(st1[2] - st2[2]));
+	auto d2 = ANGLE_DIFF_FACTOR*min(fabs(st1[2] - st2[2]), 2*PI-fabs(st1[2] - st2[2]));
 
 	return sqrt(d1*d1 + d2*d2);
 }
@@ -277,9 +279,9 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 {
 	auto output = vector<Vector3d>();
 
-	static auto const k_rho = 0.1;
-	static auto const k_alpha = 0.02;
-	static auto const k_beta = 0.02;
+	static auto const k_rho = 0.5;
+	static auto const k_alpha = 0.05;
+	static auto const k_beta = 0.05;
 
 	const auto res = this->m_simulator->GetDistOneStep();
 	const auto delta = this->m_simulator->GetTimeOneStep();
@@ -293,7 +295,7 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 
 	auto goal_t = Vector3d();
 	auto start_t = T.inv() * Vector3d(start[0], start[1], 1);
-	start_t[2] = -goal[2];
+	start_t[2] = start[2]-goal[2];
 
 	auto now_t = start_t;
 	auto total_moved = 0.0;
@@ -306,7 +308,7 @@ vector<Vector3d> MotionPlanner::DiffDriveGoTo(const Vector3d& start, const Vecto
 		auto alpha = -now_t[2] + atan2(diff[1], diff[0]);
 		auto beta = now_t[2] + alpha;
 
-		auto vel = k_rho*rho;
+		auto vel = min(k_rho*rho, MAX_VEL);
 		auto omega = k_alpha * alpha + k_beta*beta;
 
 		// [0,0,0] reached
