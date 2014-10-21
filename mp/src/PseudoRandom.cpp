@@ -15,7 +15,7 @@ unsigned int PseudoRandomSeed(void)
     else
 	s = (unsigned int) time(NULL);
     
-    printf("using seed: %u\n", s);
+    fprintf(stderr, "using seed: %u\n", s);
     
     
     srandom(s);

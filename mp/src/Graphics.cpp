@@ -11,6 +11,7 @@
 
 Graphics *m_graphics = NULL;
 string filename;
+int max_nodes = 1<<20;
 
 Graphics::Graphics(const char fname[]) 
 {
@@ -70,7 +71,7 @@ void Graphics::HandleEventOnTimer(void)
 	{
 	    if(m_method == 1)      m_planner->ExtendRandom();
 	    else if(m_method == 2) m_planner->ExtendRRT();
-	    else if(m_method == 3) m_planner->ExtendEST();
+	    else if(m_method == 3) m_planner->ExtendTest();
 	    else if(m_method == 4) m_planner->ExtendMyApproach();
 	    if(m_onstep)
 	    {
@@ -78,21 +79,38 @@ void Graphics::HandleEventOnTimer(void)
 	    	m_run = false;
 	    	break;
 	    }
+
+	    if(m_planner->m_vertices.size()>max_nodes)
+	    {
+	    	m_run = false;
+	    	break;
+	    }
 	}
 	if(!m_planner->IsProblemSolved())
-	    printf("TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n", 
+	    fprintf(stderr, "TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n",
 		   m_planner->m_totalSolveTime, m_planner->IsProblemSolved(), m_planner->m_vertices.size());
     }
      
     if(m_path.size() == 0 && m_planner->IsProblemSolved())
     {
-	m_pathPos = 0;
-	m_subPathPos = 0;
-	m_planner->GetPathFromInitToGoal(&m_path);
+		m_pathPos = 0;
+		m_subPathPos = 0;
+		m_planner->GetPathFromInitToGoal(&m_path);
+
+		fprintf(stderr, "TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n",
+			   m_planner->m_totalSolveTime, m_planner->IsProblemSolved(), m_planner->m_vertices.size());
+
+		auto total_length = 0.0;
+		auto total_time = 0.0;
 	
-	printf("TotalSolveTime = %f [Solved = %d] [NrVertices = %d]\n", 
-	       m_planner->m_totalSolveTime, m_planner->IsProblemSolved(), m_planner->m_vertices.size());
+		for(auto vid : m_path)
+		{
+			const auto v = this->m_planner->m_vertices[vid];
+			total_time += v->m_path_time;
+			total_length += v->m_path_length;
+		}
 	
+		cerr<<"path found time = "<<total_time<<" length = "<<total_length<<" avg = "<<total_length/total_time<<"m/s"<<endl;
     }
     
     if(m_path.size() != 0)
@@ -212,7 +230,7 @@ void Graphics::HandleEventOnKeyPress(const int key)
     case 'o':
     	auto output_filename = filename + ".traj";
     	m_planner->ExportPath(output_filename);
-    	cout<<"traj exported to "<<output_filename<<endl;
+    	cerr<<"traj exported to "<<output_filename<<endl;
     	break;
     }
 }
@@ -474,7 +492,7 @@ void RunExp(string filename, int method)
 	{
 		if(method == 1)      p->ExtendRandom();
 		else if(method == 2) p->ExtendRRT();
-		else if(method == 3) p->ExtendEST();
+		else if(method == 3) p->ExtendTest();
 		else if(method == 4) p->ExtendMyApproach();
 
 		if(p->GettotalSolveTime() - last_solve_time > 0.5)
@@ -497,8 +515,8 @@ int main(int argc, char **argv)
     
     if(argc < 2)
     {
-    	printf("missing arguments\n");
-    	printf("  Planner <file> [-m method]\n");
+    	fprintf(stderr, "missing arguments\n");
+    	fprintf(stderr, "  Planner <file> [-m method]\n");
     	return 0;
     }
     
@@ -506,22 +524,25 @@ int main(int argc, char **argv)
     int method = -1;
     int repetition = 30;
 
-    if(argc == 2)
+    for(int i=2;i<argc;i++)
     {
-    	filename = string(argv[1]);
-    	Graphics graphics(argv[1]);
+    	auto arg = string(argv[i]);
+		if(arg == "-m")
+		{
+			exp_mode = true;
+			method = atoi(argv[++i]);
+		}
+		else if(arg == "-n")
+		{
+			max_nodes = atoi(argv[++i]);
 
-    	graphics.MainLoop();
-    }
-    else if(string(argv[2]) == "-m")
-    {
-    	exp_mode = true;
-    	method = atoi(argv[3]);
-    }
-    else
-    {
-    	printf("unknown args %s\n", argv[2]);
-    	return -1;
+			cerr<<" ! max_nodes set to "<<max_nodes<<endl;
+		}
+		else
+		{
+			fprintf(stderr, "unknown args %s\n", argv[2]);
+			return -1;
+		}
     }
     
     if(exp_mode)
@@ -531,6 +552,15 @@ int main(int argc, char **argv)
     		PseudoRandomSeed();
     		RunExp(argv[1], method);
     	}
+    }
+    else
+    {
+    	if(argc >= 2)
+		{
+			filename = string(argv[1]);
+			Graphics graphics(argv[1]);
+			graphics.MainLoop();
+		}
     }
 
     return 0;    

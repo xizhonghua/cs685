@@ -19,7 +19,7 @@ struct Vertex
 	    TYPE_GOAL = 2
 	};
 
-    Vertex(const int parent, const State& state, const vector<State> path)
+    Vertex(const int parent, const State& state, const vector<State>& path, const double path_length, const double path_time)
     {
     	m_vid = -1;
     	m_parent = parent;
@@ -28,6 +28,9 @@ struct Vertex
     	m_neighbor = 0;
     	m_state = state;
     	m_path = path;
+
+    	m_path_length = path_length;
+    	m_path_time = path_time;
     }
 	
     int	   	m_vid;
@@ -36,6 +39,8 @@ struct Vertex
     int    	m_type;
     int    	m_nchildren;
     int	   	m_neighbor;
+    double  m_path_length;
+    double  m_path_time;
 
     vector<State> m_path;
 
@@ -57,7 +62,7 @@ public:
 
     void ExtendRRT(void);
 
-    void ExtendEST(void);
+    void ExtendTest(void);
 
     void ExtendMyApproach(void);
     
@@ -75,7 +80,10 @@ protected:
     State SimDiffDriveOneStep(const State& start, const double vel, const double omega, const double delta);
 
     // find a path from start to goal
-    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, double& total_moved);
+    // output parameters:
+    // 	total_moved
+    //  time_traveled
+    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, double& total_moved, double& time_traveled);
 
     static inline double Limit(double val, double min_val, double max_val)
     {

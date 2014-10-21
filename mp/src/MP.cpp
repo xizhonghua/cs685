@@ -10,11 +10,11 @@ using namespace mathtool;
 
 const double P = 0.1;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 10;
+static const double MAX_OMEGA = 2;
 static const double MAX_VEL_ACC = 0.5;
 static const double MAX_OMEGA_ACC = 5;
-static const double MAX_VEL = 2.5;
-static const double MAX_EXPENSION = 2.5;
+static const double MAX_VEL = 1;
+static const double MAX_EXPENSION = 5;
 static const double ANGLE_DIFF_FACTOR = 0.1;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
@@ -39,13 +39,13 @@ MotionPlanner::MotionPlanner(Simulator * const simulator)
     // 20 % of max_steps
     this->m_max_steps2 = std::max(1, (int)(max_movement2 * max_length * max_movement / this->m_simulator->GetDistOneStep()));
 
-    printf("m_max_steps = %d m_max_steps2 = %d\n", m_max_steps, m_max_steps2);
+    fprintf(stderr, "m_max_steps = %d m_max_steps2 = %d\n", m_max_steps, m_max_steps2);
 
     auto state = State(m_simulator->GetRobotCenterX(), m_simulator->GetRobotCenterY(), 0.0);
 
     auto path = vector<State>();
 
-    auto vinit = new Vertex(-1,state, path);
+    auto vinit = new Vertex(-1,state, path, 0, 0);
 
     AddVertex(vinit);
     m_vidAtGoal = -1;
@@ -75,67 +75,6 @@ double MotionPlanner::DistSE2(const State& st1, const State& st2)
 	return sqrt(d1*d1 + d2*d2);
 }
 
-Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t)
-{
-	// get resolution
-	auto res = m_simulator->GetDistOneStep();
-	auto gs = this->m_simulator->GetGoalState();
-	auto v = m_vertices[vid];
-
-	auto max_t = omega == 0 ? t : min(t, 2*PI/fabs(omega));
-
-	auto delta = m_simulator->GetTimeOneStep();
-	auto steps = max_t / delta;
-
-	//auto curState = v->m_state;
-
-	auto lastState = v->m_state;
-
-	auto steps_moved = 0;
-
-	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
-
-	auto states = this->SimDiffDrive(v->m_state, vel, omega, steps, delta);
-
-	for(auto i=0;i<steps;i++)
-	{
-		const auto& curState = states[i];
-
-		// config robot
-		this->m_simulator->SetRobotCenter(curState.x, curState.y);
-
-		if(!this->m_simulator->IsValidState())
-		{
-			if(i==0) return NULL;
-			break;
-		}
-
-		lastState = curState;
-		steps_moved = i+1;
-
-		auto dist = this->DistSE2(curState, gs);
-
-		if(dist < dist_threshold) break;
-	}
-
-	auto path = vector<State>(states.begin(), states.begin()+steps_moved);
-
-	auto new_vertex = new Vertex(vid, lastState, path);
-
-	auto dist = this->DistSE2(new_vertex->m_state, gs);
-
-	// goal reached
-	if(dist < dist_threshold)
-	{
-		new_vertex->m_type = new_vertex->TYPE_GOAL;
-		cout<<"dist = "<<dist<<" goal reached!"<<endl;
-	}
-
-	this->AddVertex(new_vertex);
-
-	return new_vertex;
-}
-
 Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal)
 {
 	// get resolution
@@ -150,25 +89,25 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal)
 
 	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
 
-	auto last_omega = 0.0;
-	auto last_vel = 0.0;
 	auto total_moved = 0.0;
+	auto time_traveled = 0.0;
 
-	auto path = this->DiffDriveGoTo(v, goal, total_moved);
+	auto path = this->DiffDriveGoTo(v, goal, total_moved, time_traveled);
 
 	if(path.size() == 0) return NULL;
 
 	auto state = path.back();
 
-	auto new_vertex = new Vertex(vid, state, path);
+	auto new_vertex = new Vertex(vid, state, path, total_moved, time_traveled);
 
 	auto dist = this->DistSE2(new_vertex->m_state, gs);
+
+	this->AddVertex(new_vertex);
 
 	// goal reached
 	if(dist < dist_threshold)
 	{
 		new_vertex->m_type = new_vertex->TYPE_GOAL;
-		cout<<"dist = "<<dist<<" goal reached!"<<endl;
 	}
 
 	this->AddVertex(new_vertex);
@@ -206,14 +145,13 @@ vector<State> MotionPlanner::SimDiffDrive(const State& start, const double vel, 
 }
 
 
-
-vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, double& total_moved)
+vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, double& total_moved, double& time_traveled)
 {
 	auto output = vector<State>();
 
 	static auto const k_rho = 2.0;
 	static auto const k_alpha = 0.02;
-	static auto const k_beta = 0.5;
+	static auto const k_beta = 0.2;
 
 	const auto res = this->m_simulator->GetDistOneStep();
 	const auto delta = this->m_simulator->GetTimeOneStep();
@@ -294,6 +232,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		if(total_moved > MAX_EXPENSION) break;
 	}
 
+	time_traveled = output.size()*delta;
 
 	return output;
 }
@@ -375,61 +314,38 @@ void MotionPlanner::ExtendRRT(void)
 }
 
 
-void MotionPlanner::ExtendEST(void)
+void MotionPlanner::ExtendTest(void)
 {
-//    Clock clk;
-//    StartTime(&clk);
-//
-//
-//	Vertex* selected = NULL;
-//	int vid = -1;
-//	double total_weight = 0;
-//	int size = this->m_vertices.size();
-//
-//	const double delta = 2*this->m_simulator->GetDistOneStep();
-//
-//	// count neighbors
-//	for(int i=0;i<size;++i)
-//	{
-//		Vertex* v = this->m_vertices[i];
-//		int x,y;
-//		this->GetGrid(v, x, y);
-//		v->m_neighbor = this->m_grids[y][x];
-//		total_weight += v->weight();
-//	}
-//
-//	double w = PseudoRandomUniformReal() * total_weight;
-//	// in reverse order, newly added nodes have more probability to be selected
-//	for(int i=size-1;i>=0;i--)
-//	{
-//		Vertex* v = this->m_vertices[i];
-//		if( v->weight() >= w)
-//		{
-//			selected = v;
-//			vid = i;
-//			break;
-//		}
-//
-//		w -= v->weight();
-//	}
-//
-//	if(selected)
-//	{
-//	    // generate a random config
-//	    double sto[2];
-//
-//	    while(true)
-//	    {
-//	    	this->RandomConfig(sto);
-//	    	// q_rand should near to selected
-//	    	if(this->Dist(sto, selected->m_state) < 20 * this->m_simulator->GetDistOneStep()) break;
-//	    }
-//
-//
-//		this->ExtendTree(vid, sto);
-//	}
-//
-//    m_totalSolveTime += ElapsedTime(&clk);
+	auto theta1 = PseudoRandomUniformReal()*2*PI;
+	auto theta2 = PseudoRandomUniformReal()*2*PI - PI;
+
+	auto x = cos(theta1)*MAX_EXPENSION*PseudoRandomUniformReal();
+	auto y = sin(theta1)*MAX_EXPENSION*PseudoRandomUniformReal();
+
+	auto s = State(x, y, theta2);
+
+	auto v0 = this->m_vertices[0];
+
+	auto& v0_s = v0->m_state;
+	v0_s.theta = 0.0;
+	v0_s.vel = MAX_VEL;
+	v0_s.omega = 0;
+
+	auto vnew = this->ExtendTreeDiffDrive(0, s);
+
+	if(!vnew) return;
+
+	auto& vnew_s = vnew->m_state;
+
+	auto dx = vnew_s.x - v0_s.x;
+	auto dy = vnew_s.y - v0_s.y;
+	auto dtheta = this->AngleDiff(vnew_s.theta, v0_s.theta);
+	auto dvel = vnew_s.vel - v0_s.vel;
+	auto domega = vnew_s.omega - v0_s.omega;
+	auto time = vnew->m_path_time;
+	auto length = vnew->m_path_length;
+
+	cout<<dx<<" "<<dy<<" "<<dtheta<<" "<<dvel<<" "<<domega<<" "<<time<<" "<<length<<endl;
 }
 
 
