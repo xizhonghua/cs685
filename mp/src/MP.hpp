@@ -1,15 +1,32 @@
 #ifndef MOTION_PLANNER_HPP_
 #define MOTION_PLANNER_HPP_
 
-#include "Matrix.h"
-#include "Simulator.hpp"
 #include <cassert>
 #include <cmath>
 #include <iostream>
+#include <cfloat>
+#include "Matrix.h"
+#include "Simulator.hpp"
 using namespace std;
 using namespace mathtool;
 
 class MySVM;
+
+struct Control
+{
+	double k_rho;
+	double k_alpha;
+	double k_beta;
+	double best;
+
+	Control()
+	{
+		k_rho = 2.0;
+		k_alpha = 0.02;
+		k_beta = 0.2;
+		best = FLT_MAX;
+	}
+};
 
 
 struct Vertex
@@ -64,9 +81,9 @@ public:
 
     void ExtendRRT(void);
 
-    void ExtendTest(void);
+    void ExtendTrain(void);
 
-    void ExtendMyApproach(void);
+    void ExtendUnitCircle(void);
     
     double GettotalSolveTime() const { return m_totalSolveTime; }
 
@@ -96,7 +113,7 @@ protected:
     // output parameters:
     // 	total_moved
     //  time_traveled
-    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, const double max_expension_dist,  double& total_moved, double& time_traveled);
+    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, const double max_expension_dist, const Control& control,  vector<double>& total_moved, vector<double>& time_traveled);
 
     static inline double Limit(double val, double min_val, double max_val)
     {
@@ -127,13 +144,17 @@ protected:
     Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
 
     // extend the tree from Vertex[vid] to goal
-    Vertex* ExtendTreeDiffDrive(const int vid, const State& goal, const double max_expension_dist);
+    Vertex* ExtendTreeDiffDrive(const int vid, const State& goal, const double max_expension_dist, const Control& control);
 
     State RandomConfig();
 
     // generate an random control
     void RandomControl(double& vel, double& omega);
 
+    void SaveBestControl();
+    void LoadBestControl();
+
+    int GetControlIndex(double dx, double dy, double dtheta);
 
 
     Simulator            	*m_simulator;
@@ -143,8 +164,13 @@ protected:
     vector<vector<int> >	m_grids;
     int						m_max_steps;
     int						m_max_steps2;
+
+    // training
     bool					m_predict;
     MySVM*					m_svm;
+    Control*				m_best_control;
+    int						m_train_examples;
+    int						m_valid_examples;
 
     friend class Graphics;    
 };

@@ -13,11 +13,11 @@ SET(EXECUTABLE_OUTPUT_PATH "${PROJECT_BINARY_DIR}/bin")
 #
 #
 IF(NOT MSVC_IDE)
-  SET(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -std=c++0x" CACHE STRING  
+  SET(CMAKE_CXX_FLAGS_DEBUG "-g -O0 -std=c++0x -Wno-deprecated" CACHE STRING  
       "Flags used by the C++ compiler during debug builds." FORCE)
-  SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -std=c++0x" 
+  SET(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG -std=c++0x -Wno-deprecated" 
       CACHE STRING "Flags used by the C++ compiler during release builds." FORCE) 
-  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -std=c++0x" CACHE STRING
+  SET(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O3 -g -std=c++0x -Wno-deprecated" CACHE STRING
       "Flags used by the C++ compiler during release builds with debug information." FORCE) 
 
   SET(CMAKE_C_FLAGS_DEBUG "-g -O0" CACHE STRING
@@ -34,7 +34,7 @@ IF(APPLE)
 ENDIF(APPLE)
 
 ADD_DEFINITIONS(
-    -std=c++11 # Or -std=c++0x
+    -std=c++11 -Wno-deprecated # Or -std=c++0x
         # Other flags
 )
 

@@ -14,7 +14,7 @@ string filename;
 int max_nodes = 1<<20;
 bool predict;
 
-Graphics::Graphics(const char fname[]) 
+Graphics::Graphics(const char fname[], int method)
 {
     m_simulator.SetupFromFile(fname);
     m_planner = new MotionPlanner(&m_simulator, predict);
@@ -68,12 +68,12 @@ void Graphics::HandleEventOnTimer(void)
 {
     if(m_run && m_method >= 1 && m_method <= 4)
     {
-	for(int i = 0; i < 100 && !m_planner->IsProblemSolved(); ++i)
+	for(int i = 0; i < 1000 && !m_planner->IsProblemSolved(); ++i)
 	{
 	    if(m_method == 1)      m_planner->ExtendRandom();
 	    else if(m_method == 2) m_planner->ExtendRRT();
-	    else if(m_method == 3) m_planner->ExtendTest();
-	    else if(m_method == 4) m_planner->ExtendMyApproach();
+	    else if(m_method == 3) m_planner->ExtendTrain();
+	    else if(m_method == 4) m_planner->ExtendUnitCircle();
 	    if(m_onstep)
 	    {
 	    	m_onstep = false;
@@ -493,8 +493,8 @@ void RunExp(string filename, int method)
 	{
 		if(method == 1)      p->ExtendRandom();
 		else if(method == 2) p->ExtendRRT();
-		else if(method == 3) p->ExtendTest();
-		else if(method == 4) p->ExtendMyApproach();
+		else if(method == 3) p->ExtendTrain();
+		else if(method == 4) p->ExtendUnitCircle();
 
 		if(p->GettotalSolveTime() - last_solve_time > 0.5)
 		{
@@ -522,7 +522,7 @@ int main(int argc, char **argv)
     }
     
     bool exp_mode = false;
-    int method = -1;
+    int method = 2;
     int repetition = 30;
 
     for(int i=2;i<argc;i++)
@@ -530,7 +530,7 @@ int main(int argc, char **argv)
     	auto arg = string(argv[i]);
 		if(arg == "-m")
 		{
-			exp_mode = true;
+			//exp_mode = true;
 			method = atoi(argv[++i]);
 		}
 		else if(arg == "-n")
@@ -543,6 +543,10 @@ int main(int argc, char **argv)
 		{
 			predict = true;
 			cerr<<" ! predict enabled!"<<endl;
+		}
+		else if(arg == "-exp")
+		{
+			exp_mode = true;
 		}
 		else
 		{
@@ -564,7 +568,7 @@ int main(int argc, char **argv)
     	if(argc >= 2)
 		{
 			filename = string(argv[1]);
-			Graphics graphics(argv[1]);
+			Graphics graphics(argv[1], method);
 			graphics.MainLoop();
 		}
     }

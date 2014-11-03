@@ -14,7 +14,7 @@
 class Graphics
 {   
 public:
-    Graphics(const char fname[]);
+    Graphics(const char fname[], int method=2);
     
     ~Graphics(void);
 
