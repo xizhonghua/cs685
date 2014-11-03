@@ -9,6 +9,8 @@
 using namespace std;
 using namespace mathtool;
 
+class MySVM;
+
 
 struct Vertex
 {
@@ -54,7 +56,7 @@ struct Vertex
 class MotionPlanner
 {
 public:
-    MotionPlanner(Simulator * const simulator);
+    MotionPlanner(Simulator * const simulator, bool predict);
             
     ~MotionPlanner(void);
 
@@ -73,6 +75,17 @@ public:
     bool IsProblemSolved(void) { return m_vidAtGoal >= 0; }
 
     void ExportPath(const string& filename) const;
+
+    static inline double AngleDiff(double source, double target)
+	{
+		return atan2(sin(target-source), cos(target-source));
+	}
+
+    static double Dist(const double* st1, const vector<double>& st2);
+    static double DistSE2(const State& st1, const State& st2);
+
+    // dist from st1 to st2
+    double Dist(const State& source, const State& target);
 
 protected:
 
@@ -98,10 +111,7 @@ protected:
 		return angle - twoPi * floor( angle / twoPi );
 	}
 
-    static inline double AngleDiff(double source, double target)
-    {
-    	return atan2(sin(target-source), cos(target-source));
-    }
+
 
     void GetPathFromInitToGoal(std::vector<int> *path) const;
 
@@ -124,8 +134,7 @@ protected:
     // generate an random control
     void RandomControl(double& vel, double& omega);
 
-    double Dist(const double* st1, const vector<double>& st2);
-    double DistSE2(const State& st1, const State& st2);
+
 
     Simulator            	*m_simulator;
     std::vector<Vertex *>	m_vertices;
@@ -134,8 +143,8 @@ protected:
     vector<vector<int> >	m_grids;
     int						m_max_steps;
     int						m_max_steps2;
-    
-
+    bool					m_predict;
+    MySVM*					m_svm;
 
     friend class Graphics;    
 };

@@ -27,6 +27,8 @@ public:
 
 	void Init();
 
+	void LoadModel();
+
 	void Train(const vector<Example>& examples);
 
 	double Predict(const State& st1, const State& st2);

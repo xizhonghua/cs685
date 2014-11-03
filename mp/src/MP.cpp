@@ -11,7 +11,7 @@
 using namespace std;
 using namespace mathtool;
 
-const double P = 0.1;
+const double P = 0.2;
 const int NUM_GRIDS = 50;
 static const double MAX_OMEGA = 2;
 static const double MAX_VEL_ACC = 0.5;
@@ -22,7 +22,7 @@ static const double ANGLE_DIFF_FACTOR = 0.1;
 
 vector<Example> examples;
 
-MotionPlanner::MotionPlanner(Simulator * const simulator)
+MotionPlanner::MotionPlanner(Simulator * const simulator, bool predict)
 {
     m_simulator = simulator;   
 
@@ -55,6 +55,14 @@ MotionPlanner::MotionPlanner(Simulator * const simulator)
     AddVertex(vinit);
     m_vidAtGoal = -1;
     m_totalSolveTime = 0;
+
+    this->m_predict = predict;
+
+    if(this->m_predict)
+    {
+    	this->m_svm = new MySVM();
+    	this->m_svm->LoadModel();
+    }
 }
 
 MotionPlanner::~MotionPlanner(void)
@@ -106,8 +114,6 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal, con
 	auto new_vertex = new Vertex(vid, state, path, total_moved, time_traveled);
 
 	auto dist = this->DistSE2(new_vertex->m_state, gs);
-
-	this->AddVertex(new_vertex);
 
 	// goal reached
 	if(dist < dist_threshold)
@@ -198,7 +204,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		omega = this->Limit(omega, last_omega-MAX_OMEGA_ACC*delta, last_omega+MAX_OMEGA_ACC*delta);
 
 		// [0,0,0] reached
-		if (rho < res && this->AngleDiff(0, now_t.theta) < res*0.5)
+		if (rho < res && fabs(this->AngleDiff(0, now_t.theta)) < res*2)
 		{
 			break;
 		}
@@ -301,7 +307,7 @@ void MotionPlanner::ExtendRRT(void)
     for(int i=0, size = this->m_vertices.size();i<size;++i)
     {
     	Vertex* v = this->m_vertices[i];
-    	double dist = this->DistSE2(cfg, v->m_state);
+    	double dist = this->Dist(v->m_state, cfg);
     	if(dist < min_dist)
     	{
     		min_dist = dist;
@@ -324,8 +330,8 @@ void MotionPlanner::ExtendTest(void)
 	auto theta1 = PseudoRandomUniformReal()*2*PI;
 	auto theta2 = PseudoRandomUniformReal()*2*PI - PI;
 
-	auto x = cos(theta1)*MAX_EXPENSION*PseudoRandomUniformReal();
-	auto y = sin(theta1)*MAX_EXPENSION*PseudoRandomUniformReal();
+	auto x = cos(theta1)*MAX_EXPENSION*PseudoRandomUniformReal()*3;
+	auto y = sin(theta1)*MAX_EXPENSION*PseudoRandomUniformReal()*3;
 
 	auto s = State(x, y, theta2);
 
@@ -336,7 +342,7 @@ void MotionPlanner::ExtendTest(void)
 	v0_s.vel = MAX_VEL;
 	v0_s.omega = 0;
 
-	auto vnew = this->ExtendTreeDiffDrive(0, s, MAX_EXPENSION*2);
+	auto vnew = this->ExtendTreeDiffDrive(0, s, MAX_EXPENSION*5);
 
 	if(!vnew) return;
 
@@ -362,7 +368,7 @@ void MotionPlanner::ExtendTest(void)
 
 	examples.push_back(ex);
 
-	if(examples.size() > 1000)
+	if(examples.size() > 10000)
 	{
 		auto mySVM = MySVM();
 		mySVM.Train(examples);
@@ -482,4 +488,16 @@ void MotionPlanner::ExportPath(const string& filename) const
 	}
 
 	fout.close();
+}
+
+
+double MotionPlanner::Dist(const State& source, const State& target)
+{
+	auto se2_dist = MotionPlanner::DistSE2(source, target);
+
+	if(se2_dist > 3*MAX_EXPENSION) return se2_dist;
+
+	if(this->m_predict) return this->m_svm->Predict(source, target);
+
+	return se2_dist;
 }

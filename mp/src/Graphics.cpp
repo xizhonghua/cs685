@@ -12,11 +12,12 @@
 Graphics *m_graphics = NULL;
 string filename;
 int max_nodes = 1<<20;
+bool predict;
 
 Graphics::Graphics(const char fname[]) 
 {
     m_simulator.SetupFromFile(fname);
-    m_planner = new MotionPlanner(&m_simulator);
+    m_planner = new MotionPlanner(&m_simulator, predict);
 
     m_selectedCircle = -1;
     m_editRadius     = false;
@@ -28,7 +29,7 @@ Graphics::Graphics(const char fname[])
 
     m_drawPlannerVertices = true;
 
-    m_method = 2;    
+    m_method = 3;
 }
 
 Graphics::~Graphics(void)
@@ -67,7 +68,7 @@ void Graphics::HandleEventOnTimer(void)
 {
     if(m_run && m_method >= 1 && m_method <= 4)
     {
-	for(int i = 0; i < 1000 && !m_planner->IsProblemSolved(); ++i)
+	for(int i = 0; i < 100 && !m_planner->IsProblemSolved(); ++i)
 	{
 	    if(m_method == 1)      m_planner->ExtendRandom();
 	    else if(m_method == 2) m_planner->ExtendRRT();
@@ -484,7 +485,7 @@ void RunExp(string filename, int method)
 	Simulator s;
 	s.SetupFromFile(filename.c_str());
 	MotionPlanner* p;
-	p = new MotionPlanner(&s);
+	p = new MotionPlanner(&s, predict);
 
 	double last_solve_time = 0.0;
 
@@ -537,6 +538,11 @@ int main(int argc, char **argv)
 			max_nodes = atoi(argv[++i]);
 
 			cerr<<" ! max_nodes set to "<<max_nodes<<endl;
+		}
+		else if(arg == "-p")
+		{
+			predict = true;
+			cerr<<" ! predict enabled!"<<endl;
 		}
 		else
 		{

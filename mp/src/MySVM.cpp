@@ -6,6 +6,9 @@
  */
 
 #include "MySVM.h"
+#include "MP.hpp"
+
+const string model_file_name = "dw.model";
 
 #define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
@@ -17,6 +20,7 @@ MySVM::MySVM() {
 }
 
 MySVM::~MySVM() {
+	svm_free_and_destroy_model(&model);
 	svm_destroy_param(&param);
 	free(prob.y);
 	free(prob.x);
@@ -42,6 +46,21 @@ void MySVM::Init()
 	param.nr_weight = 0;
 	param.weight_label = NULL;
 	param.weight = NULL;
+}
+
+void MySVM::LoadModel()
+{
+	model=svm_load_model(model_file_name.c_str());
+	if(!model)
+	{
+		fprintf(stderr,"can't open model file %s\n", model_file_name.c_str());
+		exit(1);
+	}
+	else
+	{
+		cerr<<" - svm loaded from "<<model_file_name<<endl;
+	}
+
 }
 
 void MySVM::Train(const vector<Example>& examples)
@@ -73,13 +92,29 @@ void MySVM::Train(const vector<Example>& examples)
 
 	do_cross_validation();
 
-	//model = svm_train(&prob,&param);
-	//svm_save_model("svm_model",model);
+	model = svm_train(&prob,&param);
+	svm_save_model(model_file_name.c_str(),model);
 }
+
+
 
 double MySVM::Predict(const State& st1, const State& st2)
 {
-	return -1;
+	svm_node x[4];
+
+	x[0].index = 0;
+	x[1].index = 1;
+	x[2].index = 2;
+	x[3].index = -1;
+
+	x[0].value = st2.x - st1.x;
+	x[1].value = st2.y - st1.y;
+	x[2].value = MotionPlanner::AngleDiff(st1.theta, st2.theta);
+
+	auto dist = svm_predict(model, x);
+
+	// cerr<<"dist = "<<dist<<" se2 = "<<MotionPlanner::DistSE2(st1,st2)<<endl;
+	return dist;
 }
 
 
