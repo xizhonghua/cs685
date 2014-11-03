@@ -1,10 +1,13 @@
+#include <cstring>
+#include <iostream>
+#include <fstream>
+
 #include "MP.hpp"
 #include "PseudoRandom.hpp"
 #include "MyTimer.hpp"
 #include "Matrix.h"
-#include <cstring>
-#include <iostream>
-#include <fstream>
+#include "MySVM.h"
+
 using namespace std;
 using namespace mathtool;
 
@@ -16,6 +19,8 @@ static const double MAX_OMEGA_ACC = 5;
 static const double MAX_VEL = 1;
 static const double MAX_EXPENSION = 5;
 static const double ANGLE_DIFF_FACTOR = 0.1;
+
+vector<Example> examples;
 
 MotionPlanner::MotionPlanner(Simulator * const simulator)
 {
@@ -75,7 +80,7 @@ double MotionPlanner::DistSE2(const State& st1, const State& st2)
 	return sqrt(d1*d1 + d2*d2);
 }
 
-Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal)
+Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal, const double max_expension_dist)
 {
 	// get resolution
 	auto res = m_simulator->GetDistOneStep();
@@ -92,7 +97,7 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal)
 	auto total_moved = 0.0;
 	auto time_traveled = 0.0;
 
-	auto path = this->DiffDriveGoTo(v, goal, total_moved, time_traveled);
+	auto path = this->DiffDriveGoTo(v, goal, max_expension_dist, total_moved, time_traveled);
 
 	if(path.size() == 0) return NULL;
 
@@ -145,7 +150,7 @@ vector<State> MotionPlanner::SimDiffDrive(const State& start, const double vel, 
 }
 
 
-vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, double& total_moved, double& time_traveled)
+vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, const double max_expension_dist, double& total_moved, double& time_traveled)
 {
 	auto output = vector<State>();
 
@@ -229,7 +234,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 		total_moved += vel*delta;
 
-		if(total_moved > MAX_EXPENSION) break;
+		if(total_moved > max_expension_dist) break;
 	}
 
 	time_traveled = output.size()*delta;
@@ -268,7 +273,7 @@ void MotionPlanner::ExtendRandom(void)
 
 	auto cfg = this->RandomConfig();
 
-	this->ExtendTreeDiffDrive(vid, cfg);
+	this->ExtendTreeDiffDrive(vid, cfg, MAX_EXPENSION);
 
     
     m_totalSolveTime += ElapsedTime(&clk);
@@ -307,7 +312,7 @@ void MotionPlanner::ExtendRRT(void)
 
     if(closest)
     {
-    	this->ExtendTreeDiffDrive(vid, cfg);
+    	this->ExtendTreeDiffDrive(vid, cfg, MAX_EXPENSION);
     }
 
     m_totalSolveTime += ElapsedTime(&clk);
@@ -331,7 +336,7 @@ void MotionPlanner::ExtendTest(void)
 	v0_s.vel = MAX_VEL;
 	v0_s.omega = 0;
 
-	auto vnew = this->ExtendTreeDiffDrive(0, s);
+	auto vnew = this->ExtendTreeDiffDrive(0, s, MAX_EXPENSION*2);
 
 	if(!vnew) return;
 
@@ -339,13 +344,31 @@ void MotionPlanner::ExtendTest(void)
 
 	auto dx = vnew_s.x - v0_s.x;
 	auto dy = vnew_s.y - v0_s.y;
-	auto dtheta = this->AngleDiff(vnew_s.theta, v0_s.theta);
+	auto dtheta = this->AngleDiff(v0_s.theta, vnew_s.theta);
 	auto dvel = vnew_s.vel - v0_s.vel;
 	auto domega = vnew_s.omega - v0_s.omega;
 	auto time = vnew->m_path_time;
 	auto length = vnew->m_path_length;
 
-	cout<<dx<<" "<<dy<<" "<<dtheta<<" "<<dvel<<" "<<domega<<" "<<time<<" "<<length<<endl;
+	auto st_time = sqrt(dx*dx + dy*dy) / MAX_VEL;
+
+	cout<<dx<<" "<<dy<<" "<<dtheta<<" "<<time<<" "<<st_time<<" "<<time/st_time<<endl;
+
+	auto ex = Example();
+	ex.dx = dx;
+	ex.dy = dy;
+	ex.dtheta = dtheta;
+	ex.time = time;
+
+	examples.push_back(ex);
+
+	if(examples.size() > 1000)
+	{
+		auto mySVM = MySVM();
+		mySVM.Train(examples);
+
+		exit(0);
+	}
 }
 
 

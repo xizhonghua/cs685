@@ -1,0 +1,6 @@
+InitialState 0 0  1.0
+BBox         -30 -20 30 20
+DistOneStep   1.0
+Goal          -30 -15 1.0
+Obstacles 
+0

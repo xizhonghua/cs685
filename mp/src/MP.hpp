@@ -83,7 +83,7 @@ protected:
     // output parameters:
     // 	total_moved
     //  time_traveled
-    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, double& total_moved, double& time_traveled);
+    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, const double max_expension_dist,  double& total_moved, double& time_traveled);
 
     static inline double Limit(double val, double min_val, double max_val)
     {
@@ -98,9 +98,9 @@ protected:
 		return angle - twoPi * floor( angle / twoPi );
 	}
 
-    static inline double AngleDiff(double angle1, double angle2)
+    static inline double AngleDiff(double source, double target)
     {
-    	return min(fabs(angle1 - angle2), 2*PI-fabs(angle1 - angle2));
+    	return atan2(sin(target-source), cos(target-source));
     }
 
     void GetPathFromInitToGoal(std::vector<int> *path) const;
@@ -117,7 +117,7 @@ protected:
     Vertex* ExtendTreeDiffDrive(const int vid, const double vel, const double omega, const double t);
 
     // extend the tree from Vertex[vid] to goal
-    Vertex* ExtendTreeDiffDrive(const int vid, const State& goal);
+    Vertex* ExtendTreeDiffDrive(const int vid, const State& goal, const double max_expension_dist);
 
     State RandomConfig();
 
@@ -135,6 +135,8 @@ protected:
     int						m_max_steps;
     int						m_max_steps2;
     
+
+
     friend class Graphics;    
 };
 
