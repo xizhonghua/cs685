@@ -29,7 +29,7 @@ Graphics::Graphics(const char fname[], int method)
 
     m_drawPlannerVertices = true;
 
-    m_method = 3;
+    m_method = method;
 }
 
 Graphics::~Graphics(void)
@@ -111,7 +111,7 @@ void Graphics::HandleEventOnTimer(void)
 			total_length += v->m_path_length;
 		}
 	
-		cerr<<"path found time = "<<total_time<<" length = "<<total_length<<" avg = "<<total_length/total_time<<"m/s"<<endl;
+		cout<<"path found time = "<<total_time<<" length = "<<total_length<<" avg = "<<total_length/total_time<<"m/s"<<endl;
     }
     
     if(m_path.size() != 0)
@@ -505,8 +505,25 @@ void RunExp(string filename, int method)
 		}
 	}
 
-	printf("TotalSolveTime = %f [ Solved = %d ] [ NrVertices = %d ]\n",
-		   p->GettotalSolveTime(), p->IsProblemSolved(), p->GetTotalVertices());
+	if(p->IsProblemSolved())
+	{
+		auto total_length = 0.0;
+		auto total_time = 0.0;
+
+		auto path = vector<int>();
+
+		p->GetPathFromInitToGoal(&path);
+
+		for(auto vid : path)
+		{
+			const auto v = p->GetVertex(vid);
+			total_time += v->m_path_time;
+			total_length += v->m_path_length;
+		}
+
+		printf("TotalSolveTime = %f [ Solved = %d ] [ NrVertices = %d ] [Path time = %f ]\n",
+			   p->GettotalSolveTime(), p->IsProblemSolved(), p->GetTotalVertices(), total_time);
+	}
 
 	delete p;
 }
@@ -523,7 +540,7 @@ int main(int argc, char **argv)
     
     bool exp_mode = false;
     int method = 2;
-    int repetition = 30;
+    int repetition = 50;
 
     for(int i=2;i<argc;i++)
     {

@@ -12,14 +12,14 @@
 using namespace std;
 using namespace mathtool;
 
-const double P = 0.2;
+const double P = 0.05;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 2;
+static const double MAX_OMEGA = 1;
 static const double MAX_VEL_ACC = 0.5;
-static const double MAX_OMEGA_ACC = 5;
+static const double MAX_OMEGA_ACC = 1;
 static const double MAX_VEL = 1;
 static const double MAX_EXPENSION = 5;
-static const double ANGLE_DIFF_FACTOR = 0.1;
+static const double ANGLE_DIFF_FACTOR = 0.5;
 
 
 static const int X_BLOCKS = 21;
@@ -116,26 +116,65 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal, con
 
 	auto total_moved = vector<double>();
 	auto time_traveled = vector<double>();
+	bool hit_obst;
 
-	auto path = this->DiffDriveGoTo(v, goal, max_expension_dist, control, total_moved, time_traveled);
+	auto path = this->DiffDriveGoTo(v, goal, max_expension_dist, control, total_moved, time_traveled, hit_obst);
 
 	if(path.size() == 0) return NULL;
 
-	auto state = path.back();
-
-	auto new_vertex = new Vertex(vid, state, path, total_moved.back(), time_traveled.back());
-
-	auto dist = this->DistSE2(new_vertex->m_state, gs);
-
-	// goal reached
-	if(dist < dist_threshold)
+	if(hit_obst && path.size()>3)
 	{
-		new_vertex->m_type = new_vertex->TYPE_GOAL;
+		auto half_size = path.size()/2;
+		auto first_half_path = vector<State>(path.begin(), path.begin()+half_size);
+		auto second_half_path = vector<State>(path.begin()+half_size+1, path.end());
+
+		auto first_half_path_length = total_moved[half_size-1];
+		auto second_half_path_length = total_moved.back() - first_half_path_length;
+
+		auto first_half_path_time = time_traveled[half_size-1];
+		auto second_half_path_time = time_traveled.back() - first_half_path_time;
+
+		auto mid_state = path[half_size-1];
+		auto end_state = path.back();
+
+		auto mid_vertex = new Vertex(vid, mid_state, first_half_path, first_half_path_length, first_half_path_time);
+
+		this->AddVertex(mid_vertex);
+
+		auto end_vertex = new Vertex(mid_vertex->m_vid, end_state, second_half_path, second_half_path_length, second_half_path_time);
+
+		this->AddVertex(end_vertex);
+
+		auto dist = this->DistSE2(end_vertex->m_state, gs);
+
+		// goal reached
+		if(dist < dist_threshold)
+		{
+			end_vertex->m_type = end_vertex->TYPE_GOAL;
+		}
+
+		return end_vertex;
+
 	}
+	else
+	{
 
-	this->AddVertex(new_vertex);
+		auto state = path.back();
 
-	return new_vertex;
+		auto new_vertex = new Vertex(vid, state, path, total_moved.back(), time_traveled.back());
+
+		auto dist = this->DistSE2(new_vertex->m_state, gs);
+
+		// goal reached
+		if(dist < dist_threshold)
+		{
+			new_vertex->m_type = new_vertex->TYPE_GOAL;
+		}
+
+		this->AddVertex(new_vertex);
+
+		return new_vertex;
+	}
 }
 
 State MotionPlanner::SimDiffDriveOneStep(const State& start, const double vel, const double omega, const double delta)
@@ -168,7 +207,7 @@ vector<State> MotionPlanner::SimDiffDrive(const State& start, const double vel, 
 }
 
 
-vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, const double max_expension_dist, const Control& control, vector<double>& total_moved, vector<double>& time_traveled)
+vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& goal, const double max_expension_dist, const Control& control, vector<double>& total_moved, vector<double>& time_traveled, bool& hit_obst)
 {
 	auto output = vector<State>();
 
@@ -190,11 +229,14 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 	auto now_t = start_t;
 
 	// init output parameters
-	auto moved = 0;
-	auto time_used = 0;
+	auto moved = 0.0;
+	auto time_used = 0.0;
 
+	hit_obst = false;
 	total_moved.clear();
 	time_traveled.clear();
+
+
 	auto last_vel = start_v->m_state.vel;
 	auto last_omega = start_v->m_state.omega;
 
@@ -209,7 +251,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		auto alpha = -now_t.theta + atan2(diff_y, diff_x);
 		auto beta = now_t.theta + alpha;
 
-		auto vel =  min(control.k_rho*rho, MAX_VEL);
+		auto vel = control.k_rho*rho;
 
 		vel = this->Limit(vel, last_vel-MAX_VEL_ACC*delta, last_vel+MAX_VEL_ACC*delta);
 
@@ -218,6 +260,8 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		auto omega = control.k_alpha * alpha + control.k_beta*beta;
 
 		omega = this->Limit(omega, last_omega-MAX_OMEGA_ACC*delta, last_omega+MAX_OMEGA_ACC*delta);
+
+		omega = this->Limit(omega, -MAX_OMEGA, MAX_OMEGA);
 
 		// [0,0,0] reached
 		if (rho < res && fabs(this->AngleDiff(0, now_t.theta)) < res*2)
@@ -238,6 +282,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 		if(!this->m_simulator->IsValidState())
 		{
+			hit_obst = true;
 			break;
 		}
 
@@ -247,11 +292,12 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		output.push_back(now_state);
 
 		moved += fabs(vel)*delta;
+
 		total_moved.push_back(moved);
 
 		time_traveled.push_back(output.size()*delta);
 
-		if(moved > max_expension_dist || steps>10000) break;
+		if(moved > max_expension_dist || steps>100000) break;
 
 		auto dist = this->DistSE2(now_state, gs);
 
@@ -261,8 +307,6 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 			break;
 		}
 	}
-
-	//time_traveled = output.size()*delta;
 
 	return output;
 }
@@ -399,14 +443,15 @@ void MotionPlanner::ExtendTrain(void)
 
 	auto ctl = Control();
 
-	ctl.k_rho = PseudoRandomUniformReal()*5;
-	ctl.k_alpha = PseudoRandomUniformReal()*0.5 - 0.25;
-	ctl.k_beta = PseudoRandomUniformReal()*0.5 - 0.25;
+	ctl.k_rho = PseudoRandomUniformReal()*5 + 0.2;
+	ctl.k_alpha = PseudoRandomUniformReal()*0.2 - 0.1;
+	ctl.k_beta = PseudoRandomUniformReal()*0.2 - 0.1;
 
 	auto length = vector<double>();
 	auto time = vector<double>();
+	bool hit_obst;
 
-	auto path = this->DiffDriveGoTo(v0, s, MAX_EXPENSION*2, ctl, length, time);
+	auto path = this->DiffDriveGoTo(v0, s, MAX_EXPENSION*5, ctl, length, time, hit_obst);
 
 	if(path.size() == 0) return;
 
@@ -597,7 +642,7 @@ void MotionPlanner::SaveBestControl()
 void MotionPlanner::LoadBestControl()
 {
 
-	cout<<" - Loading Best Control"<<endl;
+	cerr<<" - Loading Best Control"<<endl;
 
 	if(this->m_best_control)
 	{

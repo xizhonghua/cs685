@@ -104,6 +104,10 @@ public:
     // dist from st1 to st2
     double Dist(const State& source, const State& target);
 
+    const Vertex* GetVertex(int vid) { return this->m_vertices[vid]; }
+
+    void GetPathFromInitToGoal(std::vector<int> *path) const;
+
 protected:
 
     vector<State> SimDiffDrive(const State& start, const double vel, const double omega, const int steps, const double delta);
@@ -113,7 +117,7 @@ protected:
     // output parameters:
     // 	total_moved
     //  time_traveled
-    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, const double max_expension_dist, const Control& control,  vector<double>& total_moved, vector<double>& time_traveled);
+    vector<State> DiffDriveGoTo(const Vertex* start, const State& goal, const double max_expension_dist, const Control& control,  vector<double>& total_moved, vector<double>& time_traveled, bool& hit_obst);
 
     static inline double Limit(double val, double min_val, double max_val)
     {
@@ -130,7 +134,6 @@ protected:
 
 
 
-    void GetPathFromInitToGoal(std::vector<int> *path) const;
 
     void AddVertex(Vertex * const v);
 
