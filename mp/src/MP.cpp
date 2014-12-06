@@ -21,7 +21,7 @@ static const double MAX_OMEGA_ACC = 1;
 static const double MAX_EXPENSION = 10;
 static const double ANGLE_DIFF_FACTOR = 0.5;
 
-static const Control DEFAULT_CTL = Control(0.2, 1, 1);
+static const Control DEFAULT_CTL = Control(0.5, 1, 1);
 
 
 static const int X_BLOCKS = 21;
@@ -228,7 +228,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 	auto goal_t = State();
 	auto start_t_v = T.inv() * Vector3d(start.x, start.y, 1);
-	auto start_t = State(start_t_v[0], start_t_v[1], start.theta-goal.theta, start.vel, start.omega);
+	auto start_t = State(start_t_v[0], start_t_v[1], start.theta-goal.theta, start.vel, start.omega, start.clock);
 
 	auto now_t = start_t;
 
@@ -282,7 +282,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		auto now = T*Vector3d(now_t.x, now_t.y, 1);
 		now[2]= now_t.theta + goal.theta;
 
-		auto now_state = State(now[0], now[1], now[2], vel, omega);
+		auto now_state = State(now[0], now[1], now[2], vel, omega, start.clock + steps*delta);
 
 //		fprintf(stderr, "rho = %f delta_theta = %f alpha = %f beta = %f v = %f omega = %f\n",rho, delta_theta, alpha, beta, vel, omega);
 //		cerr<<"goal_t = "<<goal_t<<" now_t = "<<now_t<<endl;
@@ -547,8 +547,6 @@ void MotionPlanner::ExtendUnitCircle(void)
 
 		auto vnew = this->ExtendTreeDiffDrive(0, goal_state, MAX_EXPENSION*5, DEFAULT_CTL);
 
-		//break;
-
 		if(!vnew) continue;
 
 
@@ -632,7 +630,7 @@ void MotionPlanner::ExportPath(const string& filename) const
 
 		for(auto traj : v->m_path)
 		{
-			fout<<traj.x<<" "<<traj.y<<" "<<traj.theta<<" "<<traj.vel<<" "<<traj.omega<<endl;
+			fout<<traj<<endl;
 		}
 	}
 

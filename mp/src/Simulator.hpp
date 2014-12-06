@@ -23,6 +23,8 @@ struct State
 	double vel;
 	double omega;
 
+	double clock;
+
 	State()
 	{
 		x = 0;
@@ -30,22 +32,24 @@ struct State
 		theta = 0;
 		vel = 0;
 		omega = 0;
+		clock = 0;
 	}
 
 	State(double x, double y, double theta):x(x),y(y),theta(theta)
 	{
 		vel = 0;
 		omega = 0;
+		clock = 0;
 	}
 
 	// constructor
-	State(double x, double y, double theta, double vel, double omega) : x(x), y(y), theta(theta), vel(vel), omega(omega)
+	State(double x, double y, double theta, double vel, double omega, double clock) : x(x), y(y), theta(theta), vel(vel), omega(omega), clock(clock)
 	{
 		//nothing to do here
 	}
 
 	friend ostream& operator<<(ostream& out, const State& s){
-		out<<"("<<s.x<<","<<s.y<<","<<s.theta<<","<<s.vel<<","<<s.omega<<")";
+		out<<s.x<<" "<<s.y<<" "<<s.theta<<" "<<s.vel<<" "<<s.omega<<" "<<s.clock;
 		return out;
 	}
 };

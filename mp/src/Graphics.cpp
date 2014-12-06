@@ -231,7 +231,7 @@ void Graphics::HandleEventOnKeyPress(const int key)
 	fclose(out);
 
     case 'o':
-    	auto output_filename = filename + ".traj";
+    	auto output_filename = "data/" + filename + (predict?"_p":"") + (!constraint?"_nc":"")  + ".traj";
     	m_planner->ExportPath(output_filename);
     	cerr<<"traj exported to "<<output_filename<<endl;
     	break;
