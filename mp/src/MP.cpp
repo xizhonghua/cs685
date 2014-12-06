@@ -14,12 +14,14 @@ using namespace mathtool;
 
 const double P = 0.05;
 const int NUM_GRIDS = 50;
-static const double MAX_OMEGA = 1;
-static const double MAX_VEL_ACC = 0.5;
-static const double MAX_OMEGA_ACC = 1;
 static const double MAX_VEL = 1;
-static const double MAX_EXPENSION = 5;
+static const double MAX_VEL_ACC = 0.2;
+static const double MAX_OMEGA = 1;
+static const double MAX_OMEGA_ACC = 1;
+static const double MAX_EXPENSION = 10;
 static const double ANGLE_DIFF_FACTOR = 0.5;
+
+static const Control DEFAULT_CTL = Control(0.2, 1, 1);
 
 
 static const int X_BLOCKS = 21;
@@ -122,6 +124,8 @@ Vertex* MotionPlanner::ExtendTreeDiffDrive(const int vid, const State& goal, con
 
 	if(path.size() == 0) return NULL;
 
+//	cout<<"goal = "<<goal<<" reached = "<<path.back()<<endl;
+
 	if(hit_obst && path.size()>3)
 	{
 		auto half_size = path.size()/2;
@@ -212,7 +216,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 	auto output = vector<State>();
 
 	const auto res = this->m_simulator->GetDistOneStep();
-	const auto delta = this->m_simulator->GetTimeOneStep();
+	const auto delta = 0.1;
 	const auto& gs = this->m_simulator->GetGoalState();
 	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
 	auto start = start_v->m_state;
@@ -227,6 +231,9 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 	auto start_t = State(start_t_v[0], start_t_v[1], start.theta-goal.theta, start.vel, start.omega);
 
 	auto now_t = start_t;
+
+//	cerr<<"goal "<<goal<<" start"<<start<<endl;
+//	cerr<<"goal_t"<<goal_t<<" start_t"<<start_t<<endl;
 
 	// init output parameters
 	auto moved = 0.0;
@@ -246,6 +253,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 	{
 		auto diff_x = goal_t.x - now_t.x;
 		auto diff_y = goal_t.y - now_t.y;
+		auto delta_theta = goal_t.theta - now_t.theta;
 
 		auto rho = sqrt(diff_x*diff_x + diff_y*diff_y);
 		auto alpha = -now_t.theta + atan2(diff_y, diff_x);
@@ -253,20 +261,18 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 		auto vel = control.k_rho*rho;
 
-		vel = this->Limit(vel, last_vel-MAX_VEL_ACC*delta, last_vel+MAX_VEL_ACC*delta);
-
-		vel = this->Limit(vel, -MAX_VEL, MAX_VEL);
-
 		auto omega = control.k_alpha * alpha + control.k_beta*beta;
 
-		omega = this->Limit(omega, last_omega-MAX_OMEGA_ACC*delta, last_omega+MAX_OMEGA_ACC*delta);
-
-		omega = this->Limit(omega, -MAX_OMEGA, MAX_OMEGA);
-
-		// [0,0,0] reached
-		if (rho < res && fabs(this->AngleDiff(0, now_t.theta)) < res*2)
+		// apply dynamic constraint
+		if(this->m_dynamic_constraint)
 		{
-			break;
+			vel = this->Limit(vel, last_vel-MAX_VEL_ACC*delta, last_vel+MAX_VEL_ACC*delta);
+
+			vel = this->Limit(vel, -MAX_VEL, MAX_VEL);
+
+			omega = this->Limit(omega, last_omega-MAX_OMEGA_ACC*delta, last_omega+MAX_OMEGA_ACC*delta);
+
+			omega = this->Limit(omega, -MAX_OMEGA, MAX_OMEGA);
 		}
 
 		// move one step
@@ -278,11 +284,24 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 		auto now_state = State(now[0], now[1], now[2], vel, omega);
 
+//		fprintf(stderr, "rho = %f delta_theta = %f alpha = %f beta = %f v = %f omega = %f\n",rho, delta_theta, alpha, beta, vel, omega);
+//		cerr<<"goal_t = "<<goal_t<<" now_t = "<<now_t<<endl;
+//		cerr<<"goal = "<<goal<<" now = "<<now_state<<endl;
+//		cerr<<string(60,'-')<<endl;
+
+
 		this->m_simulator->SetRobotState(now_state);
+
 
 		if(!this->m_simulator->IsValidState())
 		{
 			hit_obst = true;
+			break;
+		}
+
+		// [0,0,0] reached
+		if (rho < res && fabs(this->AngleDiff(0, now_t.theta)) < res*2)
+		{
 			break;
 		}
 
@@ -297,7 +316,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 		time_traveled.push_back(output.size()*delta);
 
-		if(moved > max_expension_dist || steps>100000) break;
+		if(moved > max_expension_dist || steps>10000) break;
 
 		auto dist = this->DistSE2(now_state, gs);
 
@@ -381,10 +400,12 @@ void MotionPlanner::ExtendRRT(void)
 
     if(closest)
     {
-    	auto ctl = Control(); // get learned control
+    	// use default control
+    	auto ctl = DEFAULT_CTL;
 
     	if(m_predict)
     	{
+    		// get learned control
     		auto dx = cfg.x - closest->m_state.x;
     		auto dy = cfg.y - closest->m_state.y;
     		auto dtheta = this->AngleDiff(closest->m_state.theta, cfg.theta);
@@ -502,38 +523,53 @@ void MotionPlanner::ExtendTrain(void)
 
 void MotionPlanner::ExtendUnitCircle(void)
 {
-	auto theta1 = PseudoRandomUniformReal()*2*PI;
-	auto theta2 = PseudoRandomUniformReal()*2*PI - PI;
 
-	auto x = cos(theta1)*MAX_EXPENSION;
-	auto y = sin(theta1)*MAX_EXPENSION;
+	const int steps = 12;
+	for(int i=0;i<steps;i++)
+	{
+		auto per = (double)i/steps;
+		auto theta1 = per*2*PI;
+		auto theta2 = theta1;
 
-	auto s = State(x, y, theta2);
+		auto x = cos(theta1)*MAX_EXPENSION;
+		auto y = sin(theta1)*MAX_EXPENSION;
 
-	auto v0 = this->m_vertices[0];
+		auto goal_state = State(x, y, theta2);
 
-	auto& v0_s = v0->m_state;
-	v0_s.theta = 0.0;
-	v0_s.vel = MAX_VEL;
-	v0_s.omega = 0;
+		auto v0 = this->m_vertices[0];
 
-	auto vnew = this->ExtendTreeDiffDrive(0, s, MAX_EXPENSION*3, Control());
+		auto& v0_s = v0->m_state;
+		v0_s.x = 0.0;
+		v0_s.y = 0.0;
+		v0_s.theta = 0.0;
+		v0_s.vel = 0.0;
+		v0_s.omega = 0.0;
 
-	if(!vnew) return;
+		auto vnew = this->ExtendTreeDiffDrive(0, goal_state, MAX_EXPENSION*5, DEFAULT_CTL);
 
-	auto& vnew_s = vnew->m_state;
+		//break;
 
-	auto dx = vnew_s.x - v0_s.x;
-	auto dy = vnew_s.y - v0_s.y;
-	auto dtheta = this->AngleDiff(v0_s.theta, vnew_s.theta);
-	auto dvel = vnew_s.vel - v0_s.vel;
-	auto domega = vnew_s.omega - v0_s.omega;
-	auto time = vnew->m_path_time;
-	auto length = vnew->m_path_length;
+		if(!vnew) continue;
 
-	auto st_time = sqrt(dx*dx + dy*dy) / MAX_VEL;
 
-	cout<<dx<<" "<<dy<<" "<<dtheta<<" "<<time<<" "<<st_time<<" "<<time/st_time<<endl;
+		if(this->DistSE2(goal_state, vnew->m_state) > this->m_simulator->GetDistOneStep()) continue;
+
+		auto& vnew_s = vnew->m_state;
+
+		auto dx = vnew_s.x - v0_s.x;
+		auto dy = vnew_s.y - v0_s.y;
+		auto dtheta = this->AngleDiff(v0_s.theta, vnew_s.theta);
+		auto dvel = vnew_s.vel - v0_s.vel;
+		auto domega = vnew_s.omega - v0_s.omega;
+		auto time = vnew->m_path_time;
+		auto length = vnew->m_path_length;
+
+		auto st_time = sqrt(dx*dx + dy*dy) / MAX_VEL;
+
+		cout<<dx<<" "<<dy<<" "<<dtheta<<" "<<time<<" "<<st_time<<" "<<time/st_time<<endl;
+
+
+	}
 }
 
 void MotionPlanner::GetGrid(Vertex* const v, int& x, int& y)

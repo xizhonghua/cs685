@@ -13,11 +13,13 @@ Graphics *m_graphics = NULL;
 string filename;
 int max_nodes = 1<<20;
 bool predict;
+bool constraint = true;
 
 Graphics::Graphics(const char fname[], int method)
 {
     m_simulator.SetupFromFile(fname);
     m_planner = new MotionPlanner(&m_simulator, predict);
+    m_planner->setDyanmicConstraint(constraint);
 
     m_selectedCircle = -1;
     m_editRadius     = false;
@@ -195,13 +197,13 @@ void Graphics::HandleEventOnKeyPress(const int key)
 	exit(0);
 	
     case 'r':
-	m_editRadius = !m_editRadius;	
-	break;
+		m_editRadius = !m_editRadius;
+		break;
 	
     case 'p':
-	m_run = !m_run;
-	printf("ALLOW RUNNING = %d\n", m_run);
-	break;
+		m_run = !m_run;
+		printf("ALLOW RUNNING = %d\n", m_run);
+		break;
 
     case 'n':
     	m_run = true;
@@ -210,8 +212,8 @@ void Graphics::HandleEventOnKeyPress(const int key)
 
 
     case 'v':
-	m_drawPlannerVertices = !m_drawPlannerVertices;
-	break;
+		m_drawPlannerVertices = !m_drawPlannerVertices;
+		break;
 
     case '1': case '2': case '3': case '4':
 	m_run    = true;	
@@ -560,6 +562,11 @@ int main(int argc, char **argv)
 		{
 			predict = true;
 			cerr<<" ! predict enabled!"<<endl;
+		}
+		else if(arg == "-nc")
+		{
+			constraint = false;
+			cerr<<" ! no dynamic constraint!"<<endl;
 		}
 		else if(arg == "-exp")
 		{

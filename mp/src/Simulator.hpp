@@ -43,6 +43,11 @@ struct State
 	{
 		//nothing to do here
 	}
+
+	friend ostream& operator<<(ostream& out, const State& s){
+		out<<"("<<s.x<<","<<s.y<<","<<s.theta<<","<<s.vel<<","<<s.omega<<")";
+		return out;
+	}
 };
 
 class Simulator

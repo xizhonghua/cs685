@@ -21,9 +21,17 @@ struct Control
 
 	Control()
 	{
-		k_rho = 2.0;
+		k_rho = 1.0;
 		k_alpha = 0.02;
-		k_beta = 0.2;
+		k_beta = 0.02;
+		best = FLT_MAX;
+	}
+
+	Control(double kRho, double kAlpha, double kBeta)
+	{
+		k_rho = kRho;
+		k_alpha = kAlpha;
+		k_beta = kBeta;
 		best = FLT_MAX;
 	}
 };
@@ -108,6 +116,9 @@ public:
 
     void GetPathFromInitToGoal(std::vector<int> *path) const;
 
+    bool getDynamicConstraint() const { return this->m_dynamic_constraint; }
+    void setDyanmicConstraint(bool dc) { this->m_dynamic_constraint = dc;}
+
 protected:
 
     vector<State> SimDiffDrive(const State& start, const double vel, const double omega, const int steps, const double delta);
@@ -128,8 +139,9 @@ protected:
 
     static inline double wrapAngle( double angle )
 	{
-		double twoPi = 2.0 * 3.141592865358979;
-		return angle - twoPi * floor( angle / twoPi );
+		while(angle>=2*PI) angle -= 2*PI;
+		while(angle<=-2*PI) angle += 2*PI;
+		return angle;
 	}
 
 
@@ -160,6 +172,8 @@ protected:
     int GetControlIndex(double dx, double dy, double dtheta);
 
 
+
+
     Simulator            	*m_simulator;
     std::vector<Vertex *>	m_vertices;
     int                   	m_vidAtGoal;
@@ -167,6 +181,9 @@ protected:
     vector<vector<int> >	m_grids;
     int						m_max_steps;
     int						m_max_steps2;
+
+    // apply constraints
+    bool					m_dynamic_constraint;
 
     // training
     bool					m_predict;
