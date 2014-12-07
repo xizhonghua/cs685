@@ -11,9 +11,11 @@
 
 Graphics *m_graphics = NULL;
 string filename;
+int seed = (1<<30);
 int max_nodes = 1<<20;
 bool predict;
 bool constraint = true;
+
 
 Graphics::Graphics(const char fname[], int method)
 {
@@ -531,7 +533,7 @@ void RunExp(string filename, int method)
 }
 int main(int argc, char **argv)
 {
-    PseudoRandomSeed();
+    // PseudoRandomSeed();
     
     if(argc < 2)
     {
@@ -572,6 +574,10 @@ int main(int argc, char **argv)
 		{
 			exp_mode = true;
 		}
+		else if(arg == "-s")
+		{
+			seed = atoi(argv[++i]);
+		}
 		else
 		{
 			fprintf(stderr, "unknown args %s\n", argv[2]);
@@ -579,6 +585,16 @@ int main(int argc, char **argv)
 		}
     }
     
+    // seed not set
+    if(seed == (1<<30))
+    {
+    	seed = PseudoRandomSeed();
+    }
+    else
+    {
+    	srandom(seed);
+    }
+
     if(exp_mode)
     {
     	for(int i=0;i<repetition;i++)
@@ -591,6 +607,7 @@ int main(int argc, char **argv)
     {
     	if(argc >= 2)
 		{
+    		cerr<<"seed = "<<seed<<endl;
 			filename = string(argv[1]);
 			Graphics graphics(argv[1], method);
 			graphics.MainLoop();

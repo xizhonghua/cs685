@@ -22,7 +22,7 @@ A = load(filename);
 if(colX <= 0)
     h = plot(A(:,colY));
 else
-    h = plot(A(:,colX), A(:,colY))
+    h = plot(A(:,colX), A(:,colY));
 end
 
 t = findall (0, '-property', 'fontname'); 
@@ -33,9 +33,9 @@ axis('tight');
 % set(gca(), 'linewidth', 2, 'xtick', [0:round(size(A,1)/50)*10:size(A,1)]);
 %set(gca(), 'linewidth', 2, 'ytick', [-180:30:180]);
 
-set(gca,'fontsize',20);
-ylabel(y_label,'fontsize',20);
-xlabel(x_label,'fontsize',20);
+set(gca,'fontsize',24);
+ylabel(y_label,'fontsize',24);
+xlabel(x_label,'fontsize',24);
 
 
 
@@ -49,7 +49,7 @@ if (nargin > 5)
     format = arg_list{6};
 endif
 
-output = strcat(name, ext , '.', format);
+output = strcat(name, '_', num2str(colY), '_', num2str(colX), ext,  '.', format);
 
 printf('save figure to %s\n', output);
 
