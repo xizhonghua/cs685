@@ -14,25 +14,36 @@ class MySVM;
 
 struct Control
 {
-	double k_rho;
-	double k_alpha;
-	double k_beta;
-	double best;
+	float k_rho;
+	float k_alpha;
+	float k_beta;
+
+	// for learning
+	float best_time;
+	float dx;
+	float dy;
+	float dtheta;
+
 
 	Control()
 	{
 		k_rho = 1.0;
 		k_alpha = 0.02;
 		k_beta = 0.02;
-		best = FLT_MAX;
+		best_time = FLT_MAX;
+
+		dx=dy=dtheta=0;
 	}
 
-	Control(double kRho, double kAlpha, double kBeta)
+	Control(float kRho, float kAlpha, float kBeta)
 	{
 		k_rho = kRho;
 		k_alpha = kAlpha;
 		k_beta = kBeta;
-		best = FLT_MAX;
+
+
+		best_time = FLT_MAX;
+		dx=dy=dtheta=0;
 	}
 };
 
@@ -81,7 +92,7 @@ struct Vertex
 class MotionPlanner
 {
 public:
-    MotionPlanner(Simulator * const simulator, bool predict);
+    MotionPlanner(Simulator * const simulator, bool use_best_control, bool predict, bool constraint);
             
     ~MotionPlanner(void);
 
@@ -89,7 +100,7 @@ public:
 
     void ExtendRRT(void);
 
-    void ExtendTrain(void);
+    void findBestControls(void);
 
     void ExtendUnitCircle(void);
     
@@ -171,6 +182,10 @@ protected:
 
     int GetControlIndex(double dx, double dy, double dtheta);
 
+    // trainning
+    void trainSVM();
+    void testSVM();
+
 
 
 
@@ -185,8 +200,10 @@ protected:
     // apply constraints
     bool					m_dynamic_constraint;
 
+
     // training
     bool					m_predict;
+    bool					m_use_best_control;
     MySVM*					m_svm;
     Control*				m_best_control;
     int						m_train_examples;

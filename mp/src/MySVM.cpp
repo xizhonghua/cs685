@@ -9,6 +9,8 @@
 #include "MP.hpp"
 
 const string model_file_name = "dw.model";
+const int NumFeatures = 3;	// dx, dy, dtheta
+const int OFFSET = NumFeatures+1;
 
 #define Malloc(type,n) (type *)malloc((n)*sizeof(type))
 
@@ -65,26 +67,28 @@ void MySVM::LoadModel()
 
 void MySVM::Train(const vector<Example>& examples)
 {
-	const int NumFeatures = 3;	// dx, dy, dtheta
+
 
 	this->prob.l = examples.size();
 	this->prob.x = Malloc(struct svm_node *,prob.l);
 	this->prob.y = Malloc(double, prob.l);
-	this->x_space = Malloc(struct svm_node, prob.l * (NumFeatures+1));
+	this->x_space = Malloc(struct svm_node, prob.l * OFFSET);
+
+	cerr<<"MySVM::Train l = "<<prob.l<<" features = "<<NumFeatures<<endl;
 
 	for(auto i=0;i<this->prob.l;++i)
 	{
-		this->prob.x[i] = &x_space[i*3];
+		this->prob.x[i] = &x_space[i*OFFSET];
 		this->prob.y[i] = examples[i].time;
 
-		x_space[i*4].index = 0;
-		x_space[i*4+1].index = 1;
-		x_space[i*4+2].index = 2;
-		x_space[i*4+3].index = -1;		// end
+		x_space[i*OFFSET].index = 1;
+		x_space[i*OFFSET+1].index = 2;
+		x_space[i*OFFSET+2].index = 3;
+		x_space[i*OFFSET+3].index = -1;		// end
 
-		x_space[i*4].value = examples[i].dx;
-		x_space[i*4+1].value = examples[i].dy;
-		x_space[i*4+2].value = examples[i].dtheta;
+		x_space[i*OFFSET].value = examples[i].dx;
+		x_space[i*OFFSET+1].value = examples[i].dy;
+		x_space[i*OFFSET+2].value = examples[i].dtheta;
 	}
 
 	this->param.gamma = 1.0 / NumFeatures;
@@ -102,9 +106,9 @@ double MySVM::Predict(const State& st1, const State& st2)
 {
 	svm_node x[4];
 
-	x[0].index = 0;
-	x[1].index = 1;
-	x[2].index = 2;
+	x[0].index = 1;
+	x[1].index = 2;
+	x[2].index = 3;
 	x[3].index = -1;
 
 	x[0].value = st2.x - st1.x;

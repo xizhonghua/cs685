@@ -1,6 +1,6 @@
-InitialState 0 0  1.0
+InitialState 0 0  0.1
 BBox         -60 -40 60 40
 DistOneStep   0.1
-Goal          -60 -60 1.0
+Goal          -60 -60 0.1
 Obstacles 
 0

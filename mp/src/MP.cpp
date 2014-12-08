@@ -23,16 +23,24 @@ static const double ANGLE_DIFF_FACTOR = 0.5;
 
 static const Control DEFAULT_CTL = Control(0.5, 1, 1);
 
-
+// find best controls
 static const int X_BLOCKS = 21;
 static const int Y_BLOCKS = 21;
-static const int THETA_BLOCKS = 37;
+static const int THETA_BLOCKS = 21;
+
+static const double MAX_KRHO = 10;
+static const double MIN_KRHO = 0.5;
+static const double MAX_KALPHA = 5;
+static const double MAX_KBETA = 2;
+
 
 vector<Example> examples;
 
-MotionPlanner::MotionPlanner(Simulator * const simulator, bool predict)
+MotionPlanner::MotionPlanner(Simulator * const simulator, bool use_best_control, bool predict, bool constraint)
 {
     m_simulator = simulator;   
+    m_use_best_control = use_best_control;
+    this->m_dynamic_constraint = constraint;
 
     for(int i=0;i<NUM_GRIDS;i++)
 	{
@@ -71,11 +79,15 @@ MotionPlanner::MotionPlanner(Simulator * const simulator, bool predict)
 
     this->m_best_control = NULL;
 
+    if(this->m_use_best_control)
+    {
+    	this->LoadBestControl();
+    }
+
     if(this->m_predict)
     {
-//    	this->m_svm = new MySVM();
-//    	this->m_svm->LoadModel();
-    	this->LoadBestControl();
+    	this->m_svm = new MySVM();
+    	this->m_svm->LoadModel();
     }
 }
 
@@ -216,7 +228,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 	auto output = vector<State>();
 
 	const auto res = this->m_simulator->GetDistOneStep();
-	const auto delta = 0.1;
+	const auto delta = 0.01;
 	const auto& gs = this->m_simulator->GetGoalState();
 	auto dist_threshold =  res + this->m_simulator->GetGoalRadius();
 	auto start = start_v->m_state;
@@ -299,11 +311,6 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 			break;
 		}
 
-		// [0,0,0] reached
-		if (rho < res && fabs(this->AngleDiff(0, now_t.theta)) < res*2)
-		{
-			break;
-		}
 
 		last_vel = vel;
 		last_omega = omega;
@@ -317,6 +324,11 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 		time_traveled.push_back(output.size()*delta);
 
 		if(moved > max_expension_dist || steps>10000) break;
+
+		if (rho < 0.1 && fabs(this->AngleDiff(0, now_t.theta)) < 0.1)
+		{
+			break;
+		}
 
 		auto dist = this->DistSE2(now_state, gs);
 
@@ -403,7 +415,7 @@ void MotionPlanner::ExtendRRT(void)
     	// use default control
     	auto ctl = DEFAULT_CTL;
 
-    	if(m_predict)
+    	if(m_use_best_control)
     	{
     		// get learned control
     		auto dx = cfg.x - closest->m_state.x;
@@ -429,9 +441,14 @@ int MotionPlanner::GetControlIndex(double dx, double dy, double dtheta)
 	if(dy < -MAX_EXPENSION) dy = -MAX_EXPENSION;
 	if(dy > MAX_EXPENSION) dy = MAX_EXPENSION;
 
-	auto x_id = mathtool::round(dx / MAX_EXPENSION * X_BLOCKS);
-	auto y_id = mathtool::round(dy / MAX_EXPENSION * Y_BLOCKS);
-	auto theta_id = mathtool::round(dtheta / PI * THETA_BLOCKS);
+	int sx = dx > 0 ? 1 : -1;
+	int sy = dy > 0 ? 1 : -1;
+	int stheta = dtheta > 0 ? 1 : -1;
+
+	// [0, X_BLOCKS] or [-X_BLOCKS, 0]
+	auto x_id = sx * mathtool::round( sqrt(fabs(dx) / MAX_EXPENSION) * X_BLOCKS);
+	auto y_id = sy * mathtool::round( sqrt(fabs(dy) / MAX_EXPENSION) * Y_BLOCKS);
+	auto theta_id = stheta * mathtool::round(sqrt(fabs(dtheta) / PI) * THETA_BLOCKS);
 
 	auto idx = (x_id+X_BLOCKS) + (y_id + Y_BLOCKS)*(X_BLOCKS*2+1) + (theta_id + THETA_BLOCKS)*(X_BLOCKS*2+1)*(Y_BLOCKS*2+1);
 
@@ -439,7 +456,7 @@ int MotionPlanner::GetControlIndex(double dx, double dy, double dtheta)
 }
 
 
-void MotionPlanner::ExtendTrain(void)
+void MotionPlanner::findBestControls(void)
 {
 	if(!this->m_best_control)
 	{
@@ -464,59 +481,66 @@ void MotionPlanner::ExtendTrain(void)
 
 	auto ctl = Control();
 
-	ctl.k_rho = PseudoRandomUniformReal()*5 + 0.2;
-	ctl.k_alpha = PseudoRandomUniformReal()*0.2 - 0.1;
-	ctl.k_beta = PseudoRandomUniformReal()*0.2 - 0.1;
+	ctl.k_rho = PseudoRandomUniformReal()* MAX_KRHO  + MIN_KRHO;
+	ctl.k_alpha = (PseudoRandomUniformReal()*2 - 1.0)*MAX_KALPHA;
+	ctl.k_beta = (PseudoRandomUniformReal()*2 - 1.0)*MAX_KBETA;
 
 	auto length = vector<double>();
 	auto time = vector<double>();
 	bool hit_obst;
 
-	auto path = this->DiffDriveGoTo(v0, s, MAX_EXPENSION*5, ctl, length, time, hit_obst);
+	auto path = this->DiffDriveGoTo(v0, s, MAX_EXPENSION*2, ctl, length, time, hit_obst);
 
 	if(path.size() == 0) return;
 
-	const auto& vnew_s = path.back();
+	int index = 0;
 
-	auto dx = vnew_s.x - v0_s.x;
-	auto dy = vnew_s.y - v0_s.y;
-	auto dtheta = this->AngleDiff(v0_s.theta, vnew_s.theta);
-	auto dvel = vnew_s.vel - v0_s.vel;
-	auto domega = vnew_s.omega - v0_s.omega;
-//	auto time = vnew->m_path_time;
-//	auto length = vnew->m_path_length;
-
-	ctl.best = time.back();
-
-	auto st_time = sqrt(dx*dx + dy*dy) / MAX_VEL;
-
-	auto idx = this->GetControlIndex(dx, dy, dtheta);
-
-//	assert(idx>=0);
-//	assert(idx<X_BLOCKS*Y_BLOCKS*THETA_BLOCKS*8);
-
-	const auto& cur_ctl = this->m_best_control[idx];
-
-	if(cur_ctl.best > ctl.best)
+	for(const auto& vnew_s : path)
 	{
-	//	cout<<"idx = "<<idx<<" updated from "<<cur_ctl.best<<" to "<<ctl.best<<endl;
-		this->m_best_control[idx] = ctl;
-		++m_valid_examples;
-	}
+		auto dx = vnew_s.x - v0_s.x;
+		auto dy = vnew_s.y - v0_s.y;
+		auto dtheta = this->AngleDiff(v0_s.theta, vnew_s.theta);
+		auto dvel = vnew_s.vel - v0_s.vel;
+		auto domega = vnew_s.omega - v0_s.omega;
+		auto used_time = time[index];
 
-	++m_train_examples;
+		auto idx = this->GetControlIndex(dx, dy, dtheta);
 
-	if(m_train_examples % 10000 == 0)
-	{
-		cout<<" training "<<m_valid_examples<<"/"<<m_train_examples<<endl;
-	}
+		auto& cur_ctl = this->m_best_control[idx];
+
+		if(used_time < cur_ctl.best_time)
+		{
+			// update
+			cur_ctl.k_alpha = ctl.k_alpha;
+			cur_ctl.k_beta = ctl.k_beta;
+			cur_ctl.k_rho = ctl.k_rho;
+			cur_ctl.dx = dx;
+			cur_ctl.dy = dy;
+			cur_ctl.dtheta = dtheta;
+			cur_ctl.best_time = used_time;
+
+			++m_valid_examples;
+		}
+
+		++m_train_examples;
+
+		if(m_train_examples % 1000000 == 0)
+		{
+			cout<<" finding best controls "<<m_valid_examples<<"/"<<m_train_examples<<endl;
+		}
 
 
-	if(m_train_examples >= 1e6)
-	{
-		cout<<" - training finished!";
-		this->SaveBestControl();
-		exit(0);
+		if(m_train_examples >= 5e8)
+		{
+			cout<<" - training finished!";
+			this->SaveBestControl();
+			this->trainSVM();
+			this->testSVM();
+			exit(0);
+		}
+
+		index ++;
+
 	}
 }
 
@@ -642,9 +666,11 @@ double MotionPlanner::Dist(const State& source, const State& target)
 {
 	auto se2_dist = MotionPlanner::DistSE2(source, target);
 
-//	if(se2_dist > 3*MAX_EXPENSION) return se2_dist;
-//
-//	if(this->m_predict) return this->m_svm->Predict(source, target);
+	if(se2_dist > MAX_EXPENSION) return se2_dist;
+
+	if(this->m_predict) {
+		return this->m_svm->Predict(source, target);
+	}
 
 	return se2_dist;
 }
@@ -659,13 +685,13 @@ void MotionPlanner::SaveBestControl()
 
 	auto size = (X_BLOCKS*2+1)*(Y_BLOCKS*2+1)*(THETA_BLOCKS*2+1);
 
-	ofstream fout("ctl.model");
+	ofstream fout("bestctl.txt");
 
 
 	for(auto i=0;i<size;i++)
 	{
 		const auto& c = this->m_best_control[i];
-		fout<<c.k_rho<<" "<<c.k_alpha<<" "<<c.k_beta<<endl;
+		fout<<c.k_rho<<" "<<c.k_alpha<<" "<<c.k_beta<<" "<<c.best_time<<" "<<c.dx<<" "<<c.dy<<" "<<c.dtheta<<endl;
 	}
 
 	fout.close();
@@ -687,19 +713,97 @@ void MotionPlanner::LoadBestControl()
 
 	this->m_best_control = new Control[size];
 
-	ifstream fin("ctl.model");
+	ifstream fin("bestctl.txt");
 
 	if(fin.bad())
 	{
-		cerr<<" ! failed to open ctl.model";
+		cerr<<" ! failed to open bestctl.txt";
 		return;
 	}
 
 	for(auto i=0;i<size;i++)
 	{
 		auto& c = this->m_best_control[i];
-		fin>>c.k_rho>>c.k_alpha>>c.k_beta;
+		fin>>c.k_rho>>c.k_alpha>>c.k_beta>>c.best_time>>c.dx>>c.dy>>c.dtheta;
 	}
 
 	fin.close();
 }
+
+
+void MotionPlanner::trainSVM(void)
+{
+	auto size = (X_BLOCKS*2+1)*(Y_BLOCKS*2+1)*(THETA_BLOCKS*2+1);
+
+	vector<Example> examples;
+
+	ofstream out("train_svm.txt");
+
+	for(int i=0;i<size;i+=5)
+	{
+		auto index = rand()%size;
+		const auto& ctl = this->m_best_control[index];
+
+		// bad exmaple
+		if(ctl.best_time == FLT_MAX) continue;
+
+		Example e;
+		e.dx = ctl.dx;
+		e.dy = ctl.dy;
+		e.dtheta = ctl.dtheta;
+		e.time = ctl.best_time;
+
+
+		out<<e.dx<<" "<<e.dy<<" "<<e.dtheta<<" "<<e.time<<endl;
+
+		examples.push_back(e);
+	}
+
+
+
+	out.close();
+
+	MySVM mysvm;
+	mysvm.Init();
+	mysvm.Train(examples);
+}
+
+void MotionPlanner::testSVM()
+{
+	MySVM mysvm;
+	mysvm.Init();
+	mysvm.LoadModel();
+
+	const auto s0 = State(0,0,0);
+
+	cerr<<"Testing SVM...";
+
+	ofstream out("test_svm.txt");
+	ofstream out2("test_se2.txt");
+
+	for(int i=0;i<1e5;i++)
+	{
+		auto theta1 = PseudoRandomUniformReal()*2*PI;
+		auto theta2 = PseudoRandomUniformReal()*2*PI - PI;
+		auto rho = PseudoRandomUniformReal()*MAX_EXPENSION*1.5;
+
+		auto x = cos(theta1)*rho;
+		auto y = sin(theta1)*rho;
+
+		auto s = State(x,y,theta2);
+
+		auto dist = mysvm.Predict(s0, s);
+		auto dist2 = this->DistSE2(s0, s);
+
+		out<<x<<" "<<y<<" "<<theta2<<" "<<dist<<endl;
+
+		out2<<x<<" "<<y<<" "<<theta2<<" "<<dist2<<endl;
+	}
+
+	out.close();
+	out2.close();
+
+	cerr<<"Done"<<endl;
+}
+
+

@@ -15,13 +15,13 @@ int seed = (1<<30);
 int max_nodes = 1<<20;
 bool predict;
 bool constraint = true;
+bool use_best_control = false;
 
 
 Graphics::Graphics(const char fname[], int method)
 {
     m_simulator.SetupFromFile(fname);
-    m_planner = new MotionPlanner(&m_simulator, predict);
-    m_planner->setDyanmicConstraint(constraint);
+    m_planner = new MotionPlanner(&m_simulator, use_best_control, predict, constraint);
 
     m_selectedCircle = -1;
     m_editRadius     = false;
@@ -76,7 +76,7 @@ void Graphics::HandleEventOnTimer(void)
 	{
 	    if(m_method == 1)      m_planner->ExtendRandom();
 	    else if(m_method == 2) m_planner->ExtendRRT();
-	    else if(m_method == 3) m_planner->ExtendTrain();
+	    else if(m_method == 3) m_planner->findBestControls();
 	    else if(m_method == 4) m_planner->ExtendUnitCircle();
 	    if(m_onstep)
 	    {
@@ -489,7 +489,7 @@ void RunExp(string filename, int method)
 	Simulator s;
 	s.SetupFromFile(filename.c_str());
 	MotionPlanner* p;
-	p = new MotionPlanner(&s, predict);
+	p = new MotionPlanner(&s, use_best_control, predict, constraint);
 
 	double last_solve_time = 0.0;
 
@@ -497,7 +497,7 @@ void RunExp(string filename, int method)
 	{
 		if(method == 1)      p->ExtendRandom();
 		else if(method == 2) p->ExtendRRT();
-		else if(method == 3) p->ExtendTrain();
+		else if(method == 3) p->findBestControls();
 		else if(method == 4) p->ExtendUnitCircle();
 
 		if(p->GettotalSolveTime() - last_solve_time > 0.5)
@@ -525,8 +525,8 @@ void RunExp(string filename, int method)
 			total_length += v->m_path_length;
 		}
 
-		printf("TotalSolveTime = %f [ Solved = %d ] [ NrVertices = %d ] [Path time = %f ]\n",
-			   p->GettotalSolveTime(), p->IsProblemSolved(), p->GetTotalVertices(), total_time);
+		printf("TotalSolveTime = %f [ Solved = %d ] [ NrVertices = %d ] [Path time = %f ] [Path length = %f ]\n",
+			   p->GettotalSolveTime(), p->IsProblemSolved(), p->GetTotalVertices(), total_time, total_length);
 	}
 
 	delete p;
@@ -564,6 +564,11 @@ int main(int argc, char **argv)
 		{
 			predict = true;
 			cerr<<" ! predict enabled!"<<endl;
+		}
+		else if(arg == "-bc")
+		{
+			use_best_control = true;
+			cerr<<" ! use_best_control"<<endl;
 		}
 		else if(arg == "-nc")
 		{
