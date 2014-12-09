@@ -19,7 +19,7 @@ Course website: [http://cs.gmu.edu/~kosecka/cs685/](http://cs.gmu.edu/~kosecka/c
 ### Result
 | Path length | Path time|
 |:----:|:------:|
-|<img src="/mp/path_length.png" width="300px"/> | <img src="/mp/path_time.png" width="300px"/> |
+|<img src="/mp/path_length.png" width="360px"/> | <img src="/mp/path_time.png" width="360px"/> |
 
 
 ### Code
