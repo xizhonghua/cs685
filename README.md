@@ -24,7 +24,8 @@ Course website: [http://cs.gmu.edu/~kosecka/cs685/](http://cs.gmu.edu/~kosecka/c
 | <img src="/mp/svm_train_3d.png" width="200px"/> | <img src="/mp/svm_test_3d.png" width="200px"/> | <img src="/mp/se2_3d.png" width="200px"/> |
 | <img src="/mp/svm_train_proj.png" width="200px"/> | <img src="/mp/svm_test_proj.png" width="200px"/> | <img src="/mp/se2_proj.png" width="200px"/> |
 
-
+### Video
+[![video](http://img.youtube.com/vi/une6HweJ144/0.jpg)](http://www.youtube.com/watch?v=une6HweJ144)
 
 ### Code
 Implemented in C++: [mp](/mp)
