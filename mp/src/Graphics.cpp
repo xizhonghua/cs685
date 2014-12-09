@@ -16,7 +16,9 @@ int max_nodes = 1<<20;
 bool predict;
 bool constraint = true;
 bool use_best_control = false;
-
+int iters = 1000;
+double cur_vel = 0.0;
+int animation_speed = 20;
 
 Graphics::Graphics(const char fname[], int method)
 {
@@ -52,7 +54,7 @@ void Graphics::MainLoop(void)
     glutInit(&argc, &args);    
     glutInitDisplayMode(GLUT_RGBA | GLUT_DEPTH | GLUT_DOUBLE);    
     glutInitWindowSize(1000, 600);
-    glutInitWindowPosition(0, 0); 
+    glutInitWindowPosition(100, 100);
     glutCreateWindow("Planner");	   	
 
 
@@ -72,7 +74,7 @@ void Graphics::HandleEventOnTimer(void)
 {
     if(m_run && m_method >= 1 && m_method <= 4)
     {
-	for(int i = 0; i < 1000 && !m_planner->IsProblemSolved(); ++i)
+	for(int i = 0; i < iters && !m_planner->IsProblemSolved(); ++i)
 	{
 	    if(m_method == 1)      m_planner->ExtendRandom();
 	    else if(m_method == 2) m_planner->ExtendRRT();
@@ -127,8 +129,11 @@ void Graphics::HandleEventOnTimer(void)
 
     	if(m_subPathPos < v->m_path.size())
     	{
-    		m_simulator.SetRobotState(v->m_path[m_subPathPos]);
-    		m_subPathPos++;
+    		auto ss = v->m_path[m_subPathPos];
+    		m_simulator.SetRobotState(ss);
+    		cur_vel = ss.vel;
+    		// to control the speed
+    		m_subPathPos+=animation_speed;
     	}
     	else
     	{
@@ -306,6 +311,9 @@ void Graphics::HandleEventOnDisplay(void)
     // draw robot
     glColor3f(1, 0, 1);
     DrawRobot(m_simulator.GetRobotState());
+
+
+    DrawVelocityBar(cur_vel);
 }
 
 
@@ -381,6 +389,32 @@ void Graphics::DrawRobot(const State& state)
 	Arrow(state.x, state.y, 2.0, state.x+cos(state.theta)*L, state.y+sin(state.theta)*L, 2.0, 0.6);
 }
 
+void Graphics::DrawVelocityBar(const double vel)
+{
+	const double max_bar_length = 20;
+	const double max_vel = 1.0;
+	const double sx = -10;
+	const double sy = 20;
+
+	double dx = vel / max_vel * max_bar_length;
+	double dy = 1.5;
+
+	//glTranslatef(0,0,-2);
+
+	glColor3f(0.7, 0.7, 0.7);
+	glRectd(sx, sy, sx+max_bar_length, sy-dy);
+
+	glColor3f(1.0, 0.7, 0.0);
+	glBegin(GL_QUADS);
+	glVertex3d(sx, sy,1);
+	glVertex3d(sx, sy-dy,1);
+	glVertex3d(sx + dx, sy-dy,1);
+	glVertex3d(sx + dx, sy,1);
+	glEnd();
+
+	// glTranslatef(0,0,2);
+}
+
 void Graphics::DrawTrajectory(const int childVid, const double z)
 {
 	auto v = m_planner->m_vertices[childVid];
@@ -451,7 +485,7 @@ void Graphics::CallbackEventOnTimer(int id)
     if(m_graphics)
     {
 	m_graphics->HandleEventOnTimer();
-	glutTimerFunc(15, CallbackEventOnTimer, id);
+	glutTimerFunc(1, CallbackEventOnTimer, id);
 	glutPostRedisplay();	    
     }
 }
@@ -582,6 +616,11 @@ int main(int argc, char **argv)
 		else if(arg == "-s")
 		{
 			seed = atoi(argv[++i]);
+		}
+		else if(arg == "-i")
+		{
+			iters = atoi(argv[++i]);
+			cerr<<" ! max_nodes set to "<<iters<<endl;
 		}
 		else
 		{

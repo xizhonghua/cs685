@@ -12,7 +12,7 @@
 using namespace std;
 using namespace mathtool;
 
-const double P = 0.05;
+const double GOAL_BIAS = 0.1;
 const int NUM_GRIDS = 50;
 static const double MAX_VEL = 1;
 static const double MAX_VEL_ACC = 0.2;
@@ -345,7 +345,7 @@ vector<State> MotionPlanner::DiffDriveGoTo(const Vertex* start_v, const State& g
 
 State MotionPlanner::RandomConfig()
 {
-	if(PseudoRandomUniformReal() < P)
+	if(PseudoRandomUniformReal() < GOAL_BIAS)
 	{
 		// select random state from goal region with probability P
 		return this->m_simulator->GetGoalState();

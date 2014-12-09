@@ -30,6 +30,7 @@ protected:
     void DrawCircle2D(const double cx, const double cy, const double r);
     void DrawRobot(const State& state);
     void DrawTrajectory(const int childVid, const double z = 0.0);
+    void DrawVelocityBar(const double vel);
 
     static void CallbackEventOnDisplay(void);
     static void CallbackEventOnMouse(int button, int state, int x, int y);
